@@ -29,6 +29,7 @@ from godot_mcp.core.tscn_parser import (
     parse_tscn,
     parse_tscn_string,
 )
+from godot_mcp.core.tscn_validator import TSCNValidator
 
 
 # ==================== Cache Compartido ====================
@@ -113,6 +114,18 @@ def create_scene(
                 )
             ],
         )
+
+        # Validate before writing
+        validator = TSCNValidator()
+        validation_result = validator.validate(scene)
+
+        if not validation_result.is_valid:
+            return {
+                "success": False,
+                "error": f"Scene validation failed: {'; '.join(validation_result.errors)}",
+                "validation_errors": validation_result.errors,
+                "validation_warnings": validation_result.warnings,
+            }
 
         # Write to disk
         with open(full_scene_path, "w", encoding="utf-8") as f:
@@ -271,6 +284,25 @@ def save_scene(session_id: str, scene_path: str, scene_data: dict) -> dict:
                         binds=conn.get("binds", []),
                     )
                 )
+
+        # Validate before writing
+        validator = TSCNValidator()
+        validation_result = validator.validate(scene)
+
+        if not validation_result.is_valid:
+            return {
+                "success": False,
+                "error": f"Scene validation failed: {'; '.join(validation_result.errors)}",
+                "validation_errors": validation_result.errors,
+                "validation_warnings": validation_result.warnings,
+            }
+
+        # Log warnings if any
+        if validation_result.warnings:
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Scene validation warnings: {validation_result.warnings}")
 
         # Write to file
         with open(scene_path, "w", encoding="utf-8") as f:
