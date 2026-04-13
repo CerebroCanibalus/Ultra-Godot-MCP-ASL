@@ -138,7 +138,8 @@ class SceneNode:
             header_parts.append(f'name="{self.name}"')
         if self.type:
             header_parts.append(f'type="{self.type}"')
-        if self.parent and self.parent != ".":
+        # Godot 4 requires explicit parent - always include it
+        if self.parent:
             header_parts.append(f'parent="{self.parent}"')
         if self.unique_name_in_owner:
             header_parts.append("unique_name_in_owner=true")
