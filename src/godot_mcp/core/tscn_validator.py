@@ -355,7 +355,7 @@ class TSCNValidator:
 
     def __init__(self, project_path: str | None = None) -> None:
         """Initialize validator with all rules
-        
+
         Args:
             project_path: Absolute path to the Godot project. If provided,
                 the validator will check that ExtResource files exist on disk.
@@ -397,7 +397,14 @@ class TSCNValidator:
                 message="Invalid {ref_type} reference '{ref}' in node '{node}'",
                 level=ValidationLevel.ERROR,
             ),
-            # Rule 6: ExtResource files exist on disk
+            # Rule 6: Valid gd_scene header (load_steps required)
+            ValidationRule(
+                name="valid_gd_scene_header",
+                check=self._check_valid_gd_scene_header,
+                message="Invalid [gd_scene] header: {detail}",
+                level=ValidationLevel.ERROR,
+            ),
+            # Rule 7: ExtResource files exist on disk
             ValidationRule(
                 name="ext_resource_files_exist",
                 check=self._check_ext_resource_files_exist,
@@ -418,12 +425,12 @@ class TSCNValidator:
                 message="Node has empty name",
                 level=ValidationLevel.WARNING,
             ),
-            # Rule 9: Valid parent paths (warn only)
+            # Rule 9: Valid parent paths (ERROR - broken chains cause Godot errors)
             ValidationRule(
                 name="valid_parent_paths",
                 check=self._check_valid_parent_paths,
-                message="Invalid parent path '{parent}' for node '{name}'",
-                level=ValidationLevel.WARNING,
+                message="Invalid parent path '{parent}' for node '{name}' - intermediate node missing or invalid chain",
+                level=ValidationLevel.ERROR,
             ),
         ]
 
@@ -496,6 +503,48 @@ class TSCNValidator:
                         return False
         return True
 
+    def _check_valid_gd_scene_header(self, scene: Scene) -> bool:
+        """Check that gd_scene header has required fields
+
+        Required: format, load_steps
+        """
+        if scene.header.format <= 0:
+            return False
+        if scene.header.load_steps < 0:
+            return False
+        # load_steps should match actual resources (at least 1 if there are resources)
+        actual_resources = len(scene.ext_resources) + len(scene.sub_resources)
+        if actual_resources > 0 and scene.header.load_steps == 0:
+            return False
+        return True
+
+    def _check_ext_resource_files_exist(self, scene: Scene) -> bool:
+        """Check that all ExtResource files exist on disk
+
+        Args:
+            scene: The Scene to validate
+
+        Returns:
+            True if all ExtResource files exist, False if any file is missing.
+            Returns True if project_path is not provided (skip check).
+        """
+        if not self.project_path:
+            return True  # Skip if no project path provided
+
+        for resource in scene.ext_resources:
+            if resource.path.startswith("res://"):
+                # Convert res:// to absolute path
+                relative_path = resource.path.replace("res://", "")
+                full_path = os.path.join(self.project_path, relative_path)
+
+                if not os.path.exists(full_path):
+                    logger.warning(
+                        f"ExtResource file does not exist: {resource.path} "
+                        f"(resolved to {full_path})"
+                    )
+                    return False
+        return True
+
     def _extract_resource_ref(self, value: Any) -> tuple[str, str] | None:
         """Extract resource reference from a property value"""
         if isinstance(value, dict):
@@ -525,18 +574,44 @@ class TSCNValidator:
         return True
 
     def _check_valid_parent_paths(self, scene: Scene) -> bool:
-        """Check that parent paths are valid"""
+        """Check that parent paths are valid and all intermediate nodes exist"""
         node_names = {n.name for n in scene.nodes if n.name}
+        node_parents = {n.name: n.parent for n in scene.nodes if n.name}
         node_names.add(".")  # Root parent
 
         for node in scene.nodes:
-            if node.parent and node.parent not in node_names:
-                # Parent might be path like "Player/Child/GrandChild"
-                parts = node.parent.split("/")
-                for i in range(len(parts)):
-                    path = "/".join(parts[: i + 1])
-                    if path not in node_names:
+            if not node.parent or node.parent == ".":
+                continue  # Root node or valid root parent
+
+            # Check if direct parent exists
+            if node.parent in node_names:
+                continue  # Direct parent found
+
+            # Check hierarchical path like "Player/Child/GrandChild"
+            parts = node.parent.split("/")
+
+            # Must have at least one part
+            if not parts or parts[0] == "":
+                return False
+
+            # Check each part of the path exists as a node
+            for i, part in enumerate(parts):
+                if part == ".":
+                    continue  # Root reference is valid
+
+                if part not in node_names:
+                    # This part of the path doesn't exist
+                    return False
+
+                # For nested paths, verify the chain is valid
+                # e.g., for "Player/Child", "Child" must have parent="Player"
+                if i > 0:
+                    expected_parent = "/".join(parts[:i])
+                    actual_parent = node_parents.get(part, "")
+                    if actual_parent != expected_parent and actual_parent != ".":
+                        # The chain is broken
                         return False
+
         return True
 
     # ============ PUBLIC API ============
@@ -669,6 +744,30 @@ class TSCNValidator:
                     if node.parent not in node_names:
                         return message.format(parent=node.parent, name=node.name)
 
+        # For gd_scene header rule
+        if rule.name == "valid_gd_scene_header" and "{detail}" in message:
+            if scene.header.format <= 0:
+                return message.format(detail="format must be > 0")
+            if scene.header.load_steps < 0:
+                return message.format(detail="load_steps must be >= 0")
+            actual_resources = len(scene.ext_resources) + len(scene.sub_resources)
+            if actual_resources > 0 and scene.header.load_steps == 0:
+                return message.format(
+                    detail=f"load_steps=0 but {actual_resources} resources defined"
+                )
+            return message.format(detail="unknown header issue")
+
+        # For ext_resource_files_exist rule
+        if rule.name == "ext_resource_files_exist" and "{path}" in message:
+            if not self.project_path:
+                return message.format(path="(no project_path provided)")
+            for resource in scene.ext_resources:
+                if resource.path.startswith("res://"):
+                    relative_path = resource.path.replace("res://", "")
+                    full_path = os.path.join(self.project_path, relative_path)
+                    if not os.path.exists(full_path):
+                        return message.format(path=resource.path)
+
         return message
 
     def raise_on_error(self, result: ValidationResult) -> None:
@@ -688,12 +787,18 @@ class TSCNValidator:
             raise ValueError(error_msg)
 
 
-def validate_scene(scene: Scene, raise_on_error: bool = True) -> ValidationResult:
+def validate_scene(
+    scene: Scene,
+    project_path: str | None = None,
+    raise_on_error: bool = True,
+) -> ValidationResult:
     """
     Convenience function to validate a scene
 
     Args:
         scene: Scene to validate
+        project_path: Absolute path to the Godot project. If provided,
+            the validator will check that ExtResource files exist on disk.
         raise_on_error: If True, raise ValueError on validation failure
 
     Returns:
@@ -702,7 +807,7 @@ def validate_scene(scene: Scene, raise_on_error: bool = True) -> ValidationResul
     Raises:
         ValueError: If raise_on_error=True and validation fails
     """
-    validator = TSCNValidator()
+    validator = TSCNValidator(project_path=project_path)
     result = validator.validate(scene)
     if raise_on_error:
         validator.raise_on_error(result)

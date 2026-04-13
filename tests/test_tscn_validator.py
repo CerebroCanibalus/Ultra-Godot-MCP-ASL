@@ -131,6 +131,25 @@ texture = ExtResource("999_missing")
         assert len(result.errors) > 0
         assert any("Invalid" in err and "reference" in err for err in result.errors)
 
+    def test_ext_resource_file_not_exist(self, tmp_path):
+        """Test that missing ExtResource files are detected when project_path is provided"""
+        tscn = """[gd_scene load_steps=1 format=3]
+
+[ext_resource type="PackedScene" path="res://nonexistent.tscn" id="1_scene"]
+
+[node name="Player" type="CharacterBody2D"]
+script = ExtResource("1_scene")
+"""
+        scene = parse_tscn_string(tscn)
+        # Create a temporary directory as mock project
+        project_path = str(tmp_path)
+        validator = TSCNValidator(project_path=project_path)
+        result = validator.validate(scene)
+
+        # Should fail because file doesn't exist
+        assert not result.is_valid
+        assert any("does not exist" in err for err in result.errors)
+
     def test_has_root_node(self, validator):
         """
         Test that scene without any nodes fails validation.

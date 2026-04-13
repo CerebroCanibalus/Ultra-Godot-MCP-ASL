@@ -266,6 +266,100 @@ else:
 | has_root_node | ERROR | Escena tiene root |
 | non_empty_node_names | WARNING | Nombres no vacíos |
 | valid_parent_paths | WARNING | Rutas parent válidas |
+| ext_resource_files_exist | ERROR | Archivos existen en disco |
+
+---
+
+## 🔍 Errores Encontrados en Tests LAIKA-GD
+
+Durante el análisis de los tests del proyecto LAIKA-GD, se identificaron los siguientes patrones de errores:
+
+### 1. **Archivos de Script Referenciados No Existen**
+
+**Ejemplo de test_scene.tscn:**
+```
+[gd_scene load_steps=2 format=3 uid="uid://npc_room"]
+
+[ext_resource type="Script" path="res://src/scenes/test/npc_room.tscn.gd" id="1"]
+
+[node name="NPCRoom" type="Node2D"]
+script = ExtResource("1")
+```
+
+**Problema:** El archivo `npc_room.tscn.gd` **NO EXISTE** en el sistema de archivos.
+
+**Causa:** 
+- El script se referenció en el TSCN pero nunca se creó el archivo `.gd`
+- El validador **NO detecta esto** porque no verifica existencia de archivos
+
+**Estado:** 🔴 **CRÍTICO** - El validador necesita `project_path` para verificar
+
+---
+
+### 2. **Escenas con Formato Incompleto**
+
+**Ejemplo de test_scene.tscn (sin load_steps):**
+```
+[gd_scene format=3]
+```
+
+**Problema:** Falta `load_steps` en el header.
+
+**Estado:** 🟡 **ADVERTENCIA** - Godot puede cargarlo pero no es estándar
+
+---
+
+### 3. **Escenas con `unique_id` pero Sin Referencias**
+
+**Ejemplo de test_hierarchy_scene.tscn:**
+```
+[node name="Ball" type="RigidBody3D" parent="." unique_id=1093637155]
+```
+
+**Problema:** Los `unique_id` se generaron pero los nodos no tienen propiedades ni referencias.
+
+**Estado:** 🟢 **INFO** - Válido pero inusual
+
+---
+
+### 4. **TileMap sin Archivos de Textura**
+
+**Ejemplo de npc_room_mcp.tscn:**
+```
+[node name="Sprite" type="Sprite2D" parent="NPC" unique_id=414967242]
+texture = ExtResource("2_2hpgf")
+```
+
+**Problema:** El archivo `min_character.png` debe existir en `res://assets/graphics/minplayer/`.
+
+**Estado:** 🔴 **CRÍTICO** - El validador debe verificar archivos de textura
+
+---
+
+## 📊 Resumen de Errores en Tests
+
+| Archivo | Error | Severidad | Validador Detecta |
+|---------|-------|-----------|-------------------|
+| npc_room.tscn | Script no existe | 🔴 CRÍTICO | ❌ No (sin project_path) |
+| test_scene.tscn | Sin load_steps | 🟡 ADVERTENCIA | ❌ No |
+| test_hierarchy_scene.tscn | Sin propiedades | 🟢 INFO | ❌ No |
+| npc_room_mcp.tscn | Textura no verificada | 🔴 CRÍTICO | ❌ No (sin project_path) |
+
+---
+
+## 🛠️ Mejoras Necesarias
+
+### Prioridad 1 (Crítico)
+1. ✅ **Validación de archivos en disco** - En progreso
+2. **Validar que todos los ExtResource existan** (scripts, texturas, escenas)
+
+### Prioridad 2 (Importante)
+3. **Detectar formatos incompletos** (falta load_steps)
+4. **Validar que texturas existan** antes de usarlas
+
+### Prioridad 3 (Mejora)
+5. **Añadir tests específicos para LAIKA-GD**
+6. **Documentar patrones de errores comunes**
 
 ---
 

@@ -116,7 +116,7 @@ def create_scene(
         )
 
         # Validate before writing
-        validator = TSCNValidator()
+        validator = TSCNValidator(project_path=project_path)
         validation_result = validator.validate(scene)
 
         if not validation_result.is_valid:
@@ -202,7 +202,9 @@ def get_scene_tree(session_id: str, scene_path: str) -> dict:
 
 
 @require_session
-def save_scene(session_id: str, scene_path: str, scene_data: dict) -> dict:
+def save_scene(
+    session_id: str, scene_path: str, scene_data: dict, project_path: str | None = None
+) -> dict:
     """
     Save scene to disk.
 
@@ -210,6 +212,8 @@ def save_scene(session_id: str, scene_path: str, scene_data: dict) -> dict:
         session_id: Session ID from start_session.
         scene_path: Absolute path to the .tscn file.
         scene_data: Dict with scene structure (from get_scene_tree).
+        project_path: Absolute path to the Godot project. If provided,
+            validates that ExtResource files exist on disk.
 
     Returns:
         Dict with success status or error message.
@@ -286,7 +290,7 @@ def save_scene(session_id: str, scene_path: str, scene_data: dict) -> dict:
                 )
 
         # Validate before writing
-        validator = TSCNValidator()
+        validator = TSCNValidator(project_path=project_path)
         validation_result = validator.validate(scene)
 
         if not validation_result.is_valid:

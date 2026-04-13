@@ -332,6 +332,113 @@ from godot_mcp.tools.decorators import require_session
 
 
 @require_session
+def add_ext_resource(
+    session_id: str,
+    scene_path: str,
+    resource_type: str,
+    resource_path: str,
+    resource_id: str = None,
+    uid: str = "",
+) -> dict:
+    """
+    Add an external resource to a scene's header.
+
+    This creates an [ext_resource] entry in the TSCN file header,
+    which can then be referenced by nodes using ExtResource("id").
+
+    Args:
+        session_id: Session ID from start_session.
+        scene_path: Path to the .tscn file.
+        resource_type: Godot resource type (e.g., "Texture2D", "Script", "PackedScene").
+        resource_path: Path to the resource file (e.g., "res://sprites/player.png").
+        resource_id: Optional custom ID. If None, auto-generates one.
+        uid: Optional UID for the resource.
+
+    Returns:
+        Dict with success status and the resource ID to use in references.
+
+    Example:
+        # Add a texture resource
+        result = add_ext_resource(
+            scene_path="scenes/Player.tscn",
+            resource_type="Texture2D",
+            resource_path="res://sprites/player.png"
+        )
+        # Use result["resource_id"] in node properties:
+        # update_node(..., properties={"texture": {"type": "ExtResource", "ref": result["resource_id"]}})
+    """
+    scene_path = _ensure_tscn_path(scene_path)
+
+    if not os.path.exists(scene_path):
+        return {
+            "success": False,
+            "error": "Scene file not found",
+        }
+
+    scene = parse_tscn(scene_path)
+
+    # Check if resource with same path already exists
+    for ext in scene.ext_resources:
+        if ext.path == resource_path:
+            return {
+                "success": True,
+                "message": "Resource already exists",
+                "resource_id": ext.id,
+                "resource_type": ext.type,
+                "resource_path": ext.path,
+                "scene_path": scene_path,
+            }
+
+    # Generate ID if not provided
+    if resource_id is None:
+        # Find next available numeric ID
+        max_id = 0
+        for ext in scene.ext_resources:
+            try:
+                num_id = int(ext.id)
+                if num_id > max_id:
+                    max_id = num_id
+            except (ValueError, TypeError):
+                pass
+        resource_id = str(max_id + 1)
+
+    # Clean the ID
+    resource_id = _clean_resource_id(resource_id)
+
+    # Check for duplicate ID
+    for ext in scene.ext_resources:
+        if ext.id == resource_id:
+            return {
+                "success": False,
+                "error": f"Resource ID '{resource_id}' already exists",
+            }
+
+    # Create and add the ExtResource
+    new_ext = ExtResource(
+        type=resource_type,
+        path=resource_path,
+        id=resource_id,
+        uid=uid,
+    )
+    scene.ext_resources.append(new_ext)
+
+    # Update load_steps in header
+    scene.header.load_steps = 1 + len(scene.ext_resources) + len(scene.sub_resources)
+
+    # Save
+    _update_scene_file(scene_path, scene)
+
+    return {
+        "success": True,
+        "resource_id": resource_id,
+        "resource_type": resource_type,
+        "resource_path": resource_path,
+        "scene_path": scene_path,
+        "usage_hint": f'Use ExtResource("{resource_id}") in node properties',
+    }
+
+
+@require_session
 def add_node(
     session_id: str,
     scene_path: str,
@@ -391,6 +498,26 @@ def add_node(
 
     # Agregar nodo a la escena
     scene.nodes.append(new_node)
+
+    # Validate scene before saving (Poka-Yoke)
+    from godot_mcp.core.tscn_validator import TSCNValidator
+
+    validator = TSCNValidator()
+    validation_result = validator.validate(scene)
+
+    if not validation_result.is_valid:
+        # Rollback: remove the node we just added
+        scene.nodes.pop()
+        return {
+            "success": False,
+            "error": f"Scene validation failed: {'; '.join(validation_result.errors)}",
+            "validation_errors": validation_result.errors,
+            "validation_warnings": validation_result.warnings,
+        }
+
+    # Log warnings but allow
+    if validation_result.warnings:
+        logger.warning(f"Node add warnings: {validation_result.warnings}")
 
     # Guardar
     _update_scene_file(scene_path, scene)
@@ -908,6 +1035,7 @@ def register_node_tools(mcp) -> None:
     logger.info("Registrando node_tools (CRUD)...")
 
     # Registrar todas las herramientas
+    mcp.add_tool(add_ext_resource)
     mcp.add_tool(add_node)
     mcp.add_tool(remove_node)
     mcp.add_tool(update_node)
@@ -918,6 +1046,6 @@ def register_node_tools(mcp) -> None:
     mcp.add_tool(find_nodes)
 
     logger.info(
-        "[OK] 8 node_tools registradas (fuzzywuzzy=%s)",
+        "[OK] 9 node_tools registradas (fuzzywuzzy=%s)",
         "enabled" if FUZZY_AVAILABLE else "disabled",
     )
