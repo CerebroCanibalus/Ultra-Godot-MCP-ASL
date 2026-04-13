@@ -570,6 +570,31 @@ def _format_gdscript_value(value: Any) -> str:
         return str(value)
 
     if isinstance(value, str):
+        # Check if string is already an ExtResource/SubResource/NodePath reference
+        # Don't wrap in quotes if it's already a GDScript literal reference
+        stripped = value.strip()
+        if stripped.startswith('ExtResource("') and stripped.endswith('")'):
+            return stripped
+        if stripped.startswith('SubResource("') and stripped.endswith('")'):
+            return stripped
+        if stripped.startswith('NodePath("') and stripped.endswith('")'):
+            return stripped
+        # Also check for malformed references (with extra quotes)
+        if (
+            'ExtResource("' in stripped
+            or 'SubResource("' in stripped
+            or 'NodePath("' in stripped
+        ):
+            # Extract just the reference part
+            import re
+
+            match = re.search(
+                r'(ExtResource|SubResource|NodePath)\("([^"]+)"\)', stripped
+            )
+            if match:
+                ref_type = match.group(1)
+                ref_id = match.group(2)
+                return f'{ref_type}("{ref_id}")'
         return f'"{value}"'
 
     if isinstance(value, dict):

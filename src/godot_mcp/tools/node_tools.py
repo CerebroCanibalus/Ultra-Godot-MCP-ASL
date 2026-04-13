@@ -34,9 +34,12 @@ except ImportError:
 from godot_mcp.core.tscn_parser import (
     Scene,
     SceneNode,
+    ExtResource,
+    SubResource,
     parse_tscn,
     parse_tscn_string,
 )
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +151,138 @@ def _build_node_tree(scene: Scene) -> list[dict]:
     return result
 
 
+def _generate_resource_id() -> str:
+    """Generate a short unique ID for resources."""
+    return str(uuid.uuid4())[:8]
+
+
+# Mapeo de propiedades a tipos de recursos
+RESOURCE_TYPE_MAP = {
+    # Texturas
+    "texture": "Texture2D",
+    "texture2d": "Texture2D",
+    "sprite_frames": "SpriteFrames",
+    "icon": "Texture2D",
+    # Scripts
+    "script": "Script",
+    "script_path": "Script",
+    # Shapes (se manejan como SubResource, no ExtResource)
+    "shape": None,  # Special case - handled separately
+    # Audio
+    "stream": "AudioStream",
+    "stream2d": "AudioStream",
+    # Fonts
+    "font": "Font",
+    "font_file": "FontFile",
+    # Animations
+    "animation": "Animation",
+    "animation_library": "AnimationLibrary",
+    # Physics
+    "physics_material": "PhysicsMaterial",
+    # Other
+    "mesh": "Mesh",
+    "material": "Material",
+    "shader": "Shader",
+    "theme": "Theme",
+    "environment": "Environment",
+    "world_2d": "World2D",
+}
+
+
+def _process_resource_properties(scene: Scene, properties: dict) -> dict:
+    """
+    Process properties to convert resource paths to ExtResource/SubResource references.
+
+    Args:
+        scene: The Scene object to add resources to
+        properties: Dict of properties to process
+
+    Returns:
+        New dict with resource paths replaced by ExtResource/SubResource references
+    """
+    if not properties:
+        return properties
+
+    processed = {}
+    ext_resource_counter = 1
+    sub_resource_counter = 1
+
+    # Encontrar el siguiente ID disponible para ext_resources
+    for ext in scene.ext_resources:
+        try:
+            ext_id = int(ext.id)
+            if ext_id >= ext_resource_counter:
+                ext_resource_counter = ext_id + 1
+        except (ValueError, TypeError):
+            pass
+
+    for key, value in properties.items():
+        # Caso 1: El valor es un string que empieza con "res://"
+        if isinstance(value, str) and value.startswith("res://"):
+            # Determinar el tipo de recurso
+            resource_type = RESOURCE_TYPE_MAP.get(key.lower(), "Resource")
+
+            # Buscar si ya existe un ext_resource con el mismo path
+            existing_ext = None
+            for ext in scene.ext_resources:
+                if ext.path == value:
+                    existing_ext = ext
+                    break
+
+            if existing_ext:
+                # Reusar ext_resource existente
+                resource_ref = f'ExtResource("{existing_ext.id}")'
+            else:
+                # Crear nuevo ext_resource
+                ext_id = str(ext_resource_counter)
+                ext_resource_counter += 1
+                new_ext = ExtResource(
+                    type=resource_type,
+                    path=value,
+                    id=ext_id,
+                )
+                scene.ext_resources.append(new_ext)
+                resource_ref = f'ExtResource("{ext_id}")'
+
+            processed[key] = resource_ref
+
+        # Caso 2: El valor es un diccionario con "type" (SubResource)
+        elif isinstance(value, dict) and "type" in value:
+            sub_type = value["type"]
+
+            # Extraer propiedades del diccionario (excluyendo "type")
+            sub_properties = {k: v for k, v in value.items() if k != "type"}
+
+            # Buscar si ya existe un sub_resource con el mismo tipo y propiedades
+            existing_sub = None
+            for sub in scene.sub_resources:
+                if sub.type == sub_type and sub.properties == sub_properties:
+                    existing_sub = sub
+                    break
+
+            if existing_sub:
+                # Reusar sub_resource existente
+                resource_ref = f'SubResource("{existing_sub.id}")'
+            else:
+                # Crear nuevo sub_resource
+                sub_id = f"{sub_type}_{_generate_resource_id()}"
+                new_sub = SubResource(
+                    type=sub_type,
+                    id=sub_id,
+                    properties=sub_properties,
+                )
+                scene.sub_resources.append(new_sub)
+                resource_ref = f'SubResource("{sub_id}")'
+
+            processed[key] = resource_ref
+
+        # Caso 3: Valor normal (no es recurso)
+        else:
+            processed[key] = value
+
+    return processed
+
+
 # ============ Decoradores ====================
 
 from godot_mcp.tools.decorators import require_session
@@ -209,9 +344,10 @@ def add_node(
         parent=resolved_parent,
     )
 
-    # Agregar propiedades si se proporcionan
+    # Procesar propiedades de recursos antes de asignar
     if properties:
-        new_node.properties = properties.copy()
+        processed_props = _process_resource_properties(scene, properties)
+        new_node.properties = processed_props
 
     # Agregar nodo a la escena
     scene.nodes.append(new_node)
@@ -332,9 +468,10 @@ def update_node(
 
     idx, node = result
 
-    # Actualizar propiedades
+    # Actualizar propiedades (procesar recursos primero)
     old_props = node.properties.copy()
-    node.properties.update(properties)
+    processed_props = _process_resource_properties(scene, properties)
+    node.properties.update(processed_props)
 
     # Guardar
     _update_scene_file(scene_path, scene)

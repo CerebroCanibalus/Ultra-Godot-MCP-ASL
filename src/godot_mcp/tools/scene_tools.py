@@ -353,6 +353,113 @@ def list_scenes(session_id: str, project_path: str, recursive: bool = True) -> d
 
 
 @require_session
+def modify_scene(
+    session_id: str,
+    project_path: str,
+    scene_path: str,
+    new_root_type: Optional[str] = None,
+    new_root_name: Optional[str] = None,
+) -> dict:
+    """
+    Modifica una escena existente.
+
+    Args:
+        session_id: Session ID from start_session.
+        project_path: Absolute path to the Godot project directory.
+        scene_path: Path to the scene file (relative to project).
+        new_root_type: Optional new root node type (e.g., "Node2D", "CharacterBody2D").
+        new_root_name: Optional new root node name.
+
+    Returns:
+        Dict with success status and updated scene info.
+    """
+    try:
+        # Validate project path
+        if not os.path.isdir(project_path):
+            return {
+                "success": False,
+                "error": f"Project path does not exist: {project_path}",
+            }
+
+        # Build full scene path
+        if not scene_path.endswith(".tscn"):
+            scene_path = scene_path + ".tscn"
+
+        full_scene_path = os.path.join(project_path, scene_path)
+
+        # Check if file exists
+        if not os.path.isfile(full_scene_path):
+            return {
+                "success": False,
+                "error": f"Scene file not found: {scene_path}",
+            }
+
+        # Parse the scene
+        scene = parse_tscn(full_scene_path)
+
+        if not scene.nodes:
+            return {
+                "success": False,
+                "error": "Scene has no nodes",
+            }
+
+        # Modify root node (first node in the list with parent ".")
+        root_node = None
+        for node in scene.nodes:
+            if node.parent == "." or node.parent == "":
+                root_node = node
+                break
+
+        if not root_node:
+            return {
+                "success": False,
+                "error": "Could not find root node",
+            }
+
+        changes = []
+
+        # Apply new root type
+        if new_root_type:
+            old_type = root_node.type
+            root_node.type = new_root_type
+            changes.append(f"root_type: {old_type} -> {new_root_type}")
+
+        # Apply new root name
+        if new_root_name:
+            old_name = root_node.name
+            root_node.name = new_root_name
+            changes.append(f"root_name: {old_name} -> {new_root_name}")
+
+        if not changes:
+            return {
+                "success": False,
+                "error": "No changes specified (use new_root_type or new_root_name)",
+            }
+
+        # Save the modified scene
+        with open(full_scene_path, "w", encoding="utf-8") as f:
+            f.write(scene.to_tscn())
+
+        # Invalidate cache
+        cache = _get_scene_cache()
+        cache.invalidate(full_scene_path)
+
+        return {
+            "success": True,
+            "scene_path": scene_path,
+            "changes": changes,
+            "new_root_type": root_node.type,
+            "new_root_name": root_node.name,
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+
+@require_session
 def instantiate_scene(
     session_id: str,
     scene_path: str,
@@ -430,8 +537,8 @@ def instantiate_scene(
             parent=parent_node_path,
         )
 
-        # Add scene_file_path property
-        new_node.properties["scene_file_path"] = f'ExtResource("{ext_id}")'
+        # Add scene_file_path property as ExtResource dict (not string!)
+        new_node.properties["scene_file_path"] = {"type": "ExtResource", "ref": ext_id}
 
         parent.nodes.append(new_node)
 
@@ -472,3 +579,4 @@ def register_scene_tools(mcp: FastMCP) -> None:
     mcp.add_tool(save_scene)
     mcp.add_tool(list_scenes)
     mcp.add_tool(instantiate_scene)
+    mcp.add_tool(modify_scene)
