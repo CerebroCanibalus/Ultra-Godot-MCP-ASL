@@ -156,6 +156,26 @@ def _generate_resource_id() -> str:
     return str(uuid.uuid4())[:8]
 
 
+def _clean_resource_id(resource_id: str) -> str:
+    """
+    Clean a resource ID by removing surrounding quotes.
+
+    This prevents double-quoting issues when the ID comes from
+    user input that may already include quotes.
+    """
+    if not isinstance(resource_id, str):
+        return str(resource_id) if resource_id else ""
+
+    # Remove surrounding single or double quotes
+    resource_id = resource_id.strip()
+    while resource_id and resource_id[0] in "\"'":
+        resource_id = resource_id[1:]
+    while resource_id and resource_id[-1] in "\"'":
+        resource_id = resource_id[:-1]
+
+    return resource_id
+
+
 # Mapeo de propiedades a tipos de recursos
 RESOURCE_TYPE_MAP = {
     # Texturas
@@ -231,7 +251,8 @@ def _process_resource_properties(scene: Scene, properties: dict) -> dict:
 
             if existing_ext:
                 # Reusar ext_resource existente
-                resource_ref = f'ExtResource("{existing_ext.id}")'
+                clean_id = _clean_resource_id(existing_ext.id)
+                resource_ref = f'ExtResource("{clean_id}")'
             else:
                 # Crear nuevo ext_resource
                 ext_id = str(ext_resource_counter)
@@ -242,13 +263,30 @@ def _process_resource_properties(scene: Scene, properties: dict) -> dict:
                     id=ext_id,
                 )
                 scene.ext_resources.append(new_ext)
-                resource_ref = f'ExtResource("{ext_id}")'
+                clean_id = _clean_resource_id(ext_id)
+                resource_ref = f'ExtResource("{clean_id}")'
 
             processed[key] = resource_ref
 
-        # Caso 2: El valor es un diccionario con "type" (SubResource)
+        # Caso 2: El valor es un diccionario con "type" (SubResource/ExtResource)
         elif isinstance(value, dict) and "type" in value:
-            sub_type = value["type"]
+            resource_type = value["type"]
+
+            # Si tiene campo "ref", es una referencia a recurso existente
+            if "ref" in value:
+                ref_id = _clean_resource_id(value["ref"])
+                if resource_type == "ExtResource":
+                    processed[key] = f'ExtResource("{ref_id}")'
+                elif resource_type == "SubResource":
+                    processed[key] = f'SubResource("{ref_id}")'
+                elif resource_type == "NodePath":
+                    processed[key] = f'NodePath("{ref_id}")'
+                else:
+                    processed[key] = value
+                continue
+
+            # Si no tiene "ref", es una definición de nuevo sub_resource
+            sub_type = resource_type
 
             # Extraer propiedades del diccionario (excluyendo "type")
             sub_properties = {k: v for k, v in value.items() if k != "type"}
@@ -262,7 +300,8 @@ def _process_resource_properties(scene: Scene, properties: dict) -> dict:
 
             if existing_sub:
                 # Reusar sub_resource existente
-                resource_ref = f'SubResource("{existing_sub.id}")'
+                clean_id = _clean_resource_id(existing_sub.id)
+                resource_ref = f'SubResource("{clean_id}")'
             else:
                 # Crear nuevo sub_resource
                 sub_id = f"{sub_type}_{_generate_resource_id()}"
@@ -272,7 +311,8 @@ def _process_resource_properties(scene: Scene, properties: dict) -> dict:
                     properties=sub_properties,
                 )
                 scene.sub_resources.append(new_sub)
-                resource_ref = f'SubResource("{sub_id}")'
+                clean_id = _clean_resource_id(sub_id)
+                resource_ref = f'SubResource("{clean_id}")'
 
             processed[key] = resource_ref
 

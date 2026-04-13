@@ -599,11 +599,20 @@ def _format_gdscript_value(value: Any) -> str:
 
     if isinstance(value, dict):
         if value.get("type") == "ExtResource":
-            return f'ExtResource("{value.get("ref", "")}")'
+            ref_id = str(value.get("ref", ""))
+            # Clean any surrounding quotes from the ref ID
+            ref_id = ref_id.strip().strip("\"'")
+            return f'ExtResource("{ref_id}")'
         if value.get("type") == "SubResource":
-            return f'SubResource("{value.get("ref", "")}")'
+            ref_id = str(value.get("ref", ""))
+            # Clean any surrounding quotes from the ref ID
+            ref_id = ref_id.strip().strip("\"'")
+            return f'SubResource("{ref_id}")'
         if value.get("type") == "NodePath":
-            return f'NodePath("{value.get("ref", "")}")'
+            ref_id = str(value.get("ref", ""))
+            # Clean any surrounding quotes from the ref ID
+            ref_id = ref_id.strip().strip("\"'")
+            return f'NodePath("{ref_id}")'
         if value.get("type") == "Vector2":
             return f"Vector2({value.get('x', 0)}, {value.get('y', 0)})"
         if value.get("type") == "Vector3":
