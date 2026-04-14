@@ -181,4 +181,4 @@ if not result.is_valid:
 
 ---
 
-*Última actualización: 2026-04-13*
+*Última actualización: 2026-04-14*
