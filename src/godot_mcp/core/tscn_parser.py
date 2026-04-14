@@ -129,7 +129,7 @@ class SceneNode:
         }
         return result
 
-    def to_tscn(self) -> str:
+    def to_tscn(self, is_root: bool = False) -> str:
         lines = []
 
         # Node header
@@ -138,8 +138,8 @@ class SceneNode:
             header_parts.append(f'name="{self.name}"')
         if self.type:
             header_parts.append(f'type="{self.type}"')
-        # Godot 4 requires explicit parent - always include it
-        if self.parent:
+        # Root node MUST NOT have a parent attribute (Godot rejects it)
+        if self.parent and not is_root:
             header_parts.append(f'parent="{self.parent}"')
         if self.unique_name_in_owner:
             header_parts.append("unique_name_in_owner=true")
@@ -224,8 +224,9 @@ class Scene:
             lines.append(sub_resource.to_tscn())
 
         # Nodes
-        for node in self.nodes:
-            lines.append(node.to_tscn())
+        for i, node in enumerate(self.nodes):
+            is_root = i == 0
+            lines.append(node.to_tscn(is_root=is_root))
             lines.append("")
 
         # Connections
