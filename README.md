@@ -6,63 +6,64 @@
 [![Version](https://img.shields.io/badge/Version-3.1.0-6f42c1)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Ultra Godot MCP** — *Plus Ultra*: ir más allá. El servidor MCP más rápido y completo para Godot Engine.
-Permite a IAs y asistentes controlar proyectos Godot directamente: crear escenas, manipular nodos, gestionar recursos y validar código, **todo sin abrir el editor**.
+> *"La técnica es una actividad compositora o destructora, violenta, y esto es lo que Aristóteles llamaba la poiesis, la poesía, precisamente."* — Gustavo Bueno
+
+**Ultra Godot MCP** — *Plus Ultra*: ir más allá.
+
+Este servidor MCP no delega la creación: la **potencia**. Opera directamente sobre la materia de tu proyecto Godot — escenas, nodos, recursos, scripts — sin intermediarios, sin lanzar el editor, sin esperar. La técnica como extensión del poder operatorio del desarrollador.
 
 ---
 
-## ✨ Características
+## ✨ Capacidades
 
-| Característica | Descripción |
+| Capacidad | Descripción |
 |---|---|
-| 🔍 **Parsing nativo TSCN** | Lee y escribe archivos `.tscn` directamente, sin Godot headless |
-| 🛠️ **38 herramientas MCP** | Escenas, nodos, recursos, scripts, señales, validación y más |
-| 🎯 **Inspector unificado** | `set_node_properties` maneja TODOS los tipos de propiedades automáticamente |
-| 🔄 **Sesiones en memoria** | Workspace con dirty tracking, lazy loading y cache LRU |
-| 🛡️ **Validación Poka-Yoke** | Previene errores antes de escribir archivos |
-| 🔎 **Búsqueda fuzzy** | Encuentra nodos tolerando typos con `fuzzywuzzy` |
-| 📦 **Templates** | Genera estructuras de nodos y scripts GDScript desde plantillas |
+| 🔍 **Parsing nativo TSCN** | Lee y escribe archivos `.tscn` directamente — composición sin Godot headless |
+| 🛠️ **38 herramientas** | El arsenal completo: escenas, nodos, recursos, scripts, señales, validación |
+| 🎯 **Inspector unificado** | `set_node_properties` transforma TODOS los tipos de propiedad en una sola operación |
+| 🔄 **Sesiones en memoria** | Workspace con dirty tracking y cache LRU — el estado persiste, no se reconstruye |
+| 🛡️ **Validación Poka-Yoke** | Previene el error antes de que se materialice en el archivo |
+| 🔎 **Búsqueda fuzzy** | Encuentra nodos tolerando typos — la intención importa más que la forma |
+| 📦 **Templates** | Genera estructuras de nodos y scripts GDScript desde plantillas reutilizables |
 
 ---
 
-## 🏆 ¿Por qué Ultra Godot MCP?
+## 🏆 Frente a otros MCPs de Godot
 
-### ⚡ Velocidad extrema
+### Composición directa vs. intermediación
 
-La principal ventaja frente a otros MCPs de Godot: **no lanzamos Godot nunca**. Mientras otros MCPs ejecutan `godot --headless --script` por cada operación (2-5 segundos de overhead), nuestro **parser nativo de TSCN** lee y escribe archivos `.tscn` directamente en milisegundos.
+La diferencia fundamental es material: otros MCPs **intermedian** — lanzan `godot --headless --script` por cada operación, añadiendo 2-5 segundos de overhead. Ultra Godot MCP **compone directamente** — su parser nativo lee y escribe `.tscn` en milisegundos.
 
-| Operación | Otros MCPs | Ultra Godot MCP |
-|---|---|---|
-| Leer escena | ~2-5s (lanza Godot) | <10ms (parser nativo) |
-| Añadir nodo | ~2-5s | <5ms |
-| Validar proyecto | ~10-30s | <500ms |
+| Operación | [godot-mcp](https://github.com/Coding-Solo/godot-mcp) (3.1k⭐) | [GoPeak](https://github.com/GoD0Yun/Gopeak-godot-mcp) (125⭐) | Ultra Godot MCP |
+|---|---|---|---|
+| Leer escena | ~2-5s (Godot headless) | ~2-5s (Godot headless) | <10ms (parser nativo) |
+| Añadir nodo | ~2-5s | ~2-5s | <5ms |
+| Validar proyecto | ~10-30s | ~10-30s | <500ms |
 
-### 💪 Potencia sin sacrificar rendimiento
+### Comparativa completa
 
-38 herramientas MCP completas — el conjunto más amplio disponible — corriendo a velocidad de parser nativo:
+| Dimensión | [godot-mcp](https://github.com/Coding-Solo/godot-mcp) | [GoPeak](https://github.com/GoD0Yun/Gopeak-godot-mcp) | [tugcantopaloglu/godot-mcp](https://github.com/tugcantopaloglu/godot-mcp) | [gdai-mcp](https://github.com/3ddelano/gdai-mcp-plugin-godot) | **Ultra Godot MCP** |
+|---|---|---|---|---|---|
+| **Herramientas** | ~15 | 95+ | 149 | ~12 | **38** |
+| **Parsing** | Godot headless | Godot headless | Godot headless | Plugin Godot | **Nativo Python** |
+| **Velocidad** | Lento (2-5s/op) | Lento (2-5s/op) | Lento (2-5s/op) | Medio | **<10ms** |
+| **Sin Godot instalado** | ❌ | ❌ | ❌ | ❌ | **✅** |
+| **Sesiones en memoria** | ❌ | ❌ | ❌ | ❌ | **✅** |
+| **Cache LRU** | ❌ | ❌ | ❌ | ❌ | **✅** |
+| **Validación Poka-Yoke** | ❌ | ❌ | ❌ | ❌ | **✅** |
+| **Búsqueda fuzzy** | ❌ | ❌ | ❌ | ❌ | **✅** |
+| **Templates** | ❌ | ❌ | ❌ | ❌ | **✅** |
+| **Documentación en español** | ❌ | ❌ | ❌ | ❌ | **✅** |
 
-| Ventaja | Ultra Godot MCP | Otros MCPs |
-|---|---|---|
-| **Parsing** | Nativo Python (lee TSCN directo) | Godot headless por cada operación |
-| **Herramientas** | 38 completas | 8-15 básicas |
-| **Sesiones** | Workspace en memoria + cache LRU | Re-parsean todo cada vez |
-| **Inspector unificado** | 1 herramienta para TODOS los tipos | Herramientas separadas por tipo |
-| **Validación** | Poka-Yoke antes de escribir | Escriben y luego fallan |
-| **Búsqueda** | Fuzzy matching (tolera typos) | Búsqueda exacta |
-| **Dependencias** | Solo Python — sin Godot instalado | Requiere Godot en PATH |
+> **Nota:** GoPeak y tugcantopaloglu tienen más herramientas en número bruto, pero cada operación requiere lanzar Godot headless. Ultra Godot MCP prioriza **composición directa**: menos intermediación, más velocidad. 38 herramientas que operan a velocidad de parser nativo, no 149 que esperan al editor.
 
-### 🌎 Hecho para la comunidad hispanohablante
+### 🌎 Hecho para la comunidad hispanohablante y lusófona
 
-Ultra Godot MCP nació de una necesidad real: **la comunidad hispanohablante de Godot es enorme, pero las herramientas de IA para desarrollo de juegos están diseñadas exclusivamente en inglés**.
+La comunidad de Godot en español y portugués es enorme. Las herramientas de IA para desarrollo de juegos, sin embargo, están diseñadas exclusivamente en inglés. Ultra Godot MCP **compone desde nuestra realidad material**:
 
-- **Documentación bilingüe**: README, guías y errores documentados en español
-- **Soporte nativo**: Creado por y para desarrolladores de España, México, Argentina, Colombia y toda Latinoamérica
-- **Sin barrera idiomática**: Mensajes de error, validación y logs en español cuando corres en tu entorno
-- **Comunidad inclusiva**: Porque hacer juegos no debería requerir hablar inglés
-
-> *"La técnica no es un simple instrumento, es la forma en que el ser humano se apropia de la realidad"* — Gustavo Bueno
-
-Desarrollado con ❤️ por los trabajadores y los iberófonos del mundo 🌍
+- **Documentación en español**: guías, errores y referencia técnica en tu idioma
+- **Creado por y para** desarrolladores de España, México, Argentina, Colombia, Brasil, Portugal y toda Iberoamérica
+- **Sin barrera idiomática**: porque hacer juegos no debería requerir hablar inglés
 
 ---
 
@@ -77,39 +78,32 @@ pip install godot-mcp
 ### Desde fuente
 
 ```bash
-# Clonar el repositorio
 git clone https://github.com/lenin-iberofono/godot-mcp.git
 cd godot-mcp
 
-# Instalar
 pip install -e .
-
-# O con dependencias de desarrollo
+# O con dependencias de desarrollo:
 pip install -e ".[dev]"
 ```
 
 ### Requisitos
 
 - **Python 3.10+**
-- **Godot 4.6+** (para validación con `--check-only`)
+- **Godot 4.6+** (solo para validación con `--check-only`, opcional)
 
 ---
 
-## 🚀 Inicio Rápido
+## 🚀 Puesta en marcha
 
 ### 1. Iniciar el servidor
 
 ```bash
-# Como comando
 godot-mcp
-
-# O como módulo
+# O como módulo:
 python -m godot_mcp.server
 ```
 
 ### 2. Configurar en tu cliente MCP
-
-Añade a tu configuración de cliente MCP (Claude Desktop, Cursor, etc.):
 
 ```json
 {
@@ -123,9 +117,9 @@ Añade a tu configuración de cliente MCP (Claude Desktop, Cursor, etc.):
 }
 ```
 
-### 3. Usar con tu asistente IA
+### 3. Operar
 
-Una vez configurado, tu asistente podrá:
+Una vez configurado, tu asistente compone sobre tu proyecto:
 
 ```
 → "Crea una escena Player con CharacterBody2D, CollisionShape2D y Sprite2D"
@@ -136,9 +130,9 @@ Una vez configurado, tu asistente podrá:
 
 ---
 
-## 🛠️ Herramientas Disponibles
+## 🛠️ Herramientas
 
-### 📋 Sesión
+### Sesión
 | Herramienta | Descripción |
 |---|---|
 | `start_session` | Crear sesión para un proyecto Godot |
@@ -146,7 +140,7 @@ Una vez configurado, tu asistente podrá:
 | `get_session_info` | Información de una sesión |
 | `list_sessions` | Listar sesiones activas |
 
-### 🎬 Escenas
+### Escenas
 | Herramienta | Descripción |
 |---|---|
 | `create_scene` | Crear nueva escena `.tscn` |
@@ -155,7 +149,7 @@ Una vez configurado, tu asistente podrá:
 | `list_scenes` | Listar todas las escenas del proyecto |
 | `instantiate_scene` | Instanciar una escena como nodo hijo |
 
-### 🧱 Nodos
+### Nodos
 | Herramienta | Descripción |
 |---|---|
 | `add_node` | Añadir nodo a una escena |
@@ -167,11 +161,12 @@ Una vez configurado, tu asistente podrá:
 | `get_node_properties` | Obtener todas las propiedades de un nodo |
 
 ### 🔥 Inspector Unificado
+
 ```python
 set_node_properties(session_id, scene_path, node_path, properties={...})
 ```
 
-Maneja **automáticamente** todos los tipos:
+Transforma cualquier propiedad del inspector en una sola operación:
 
 | Tipo | Ejemplo |
 |---|---|
@@ -183,7 +178,7 @@ Maneja **automáticamente** todos los tipos:
 | **Enums** | `"motion_mode": "MOTION_MODE_GROUNDED"` |
 | **Simples** | `"text": "Hello", "visible": true` |
 
-### 📦 Recursos
+### Recursos
 | Herramienta | Descripción |
 |---|---|
 | `create_resource` | Crear recurso `.tres` |
@@ -195,13 +190,13 @@ Maneja **automáticamente** todos los tipos:
 | `get_uid` | Obtener UID de recurso (Godot 4.4+) |
 | `update_project_uids` | Actualizar todos los UIDs del proyecto |
 
-### 📜 Scripts y Señales
+### Scripts y Señales
 | Herramienta | Descripción |
 |---|---|
 | `set_script` | Adjuntar script `.gd` a un nodo |
 | `connect_signal` | Conectar señal entre nodos |
 
-### 🏗️ Proyecto
+### Proyecto
 | Herramienta | Descripción |
 |---|---|
 | `get_project_info` | Metadata del proyecto |
@@ -210,7 +205,7 @@ Maneja **automáticamente** todos los tipos:
 | `find_resources` | Buscar recursos `.tres` |
 | `list_projects` | Encontrar proyectos Godot en un directorio |
 
-### ✅ Validación
+### Validación
 | Herramienta | Descripción |
 |---|---|
 | `validate_tscn` | Validar archivo `.tscn` |
@@ -234,20 +229,13 @@ Maneja **automáticamente** todos los tipos:
 ## 🧪 Testing
 
 ```bash
-# Todos los tests
-pytest tests/
-
-# Con coverage
-pytest --cov=godot_mcp tests/
-
-# Solo tests E2E
-pytest tests/e2e/
-
-# Tests específicos
-pytest tests/test_server.py -v
+pytest tests/              # Todos los tests
+pytest --cov=godot_mcp     # Con coverage
+pytest tests/e2e/          # Solo E2E
+pytest tests/test_server.py -v  # Tests específicos
 ```
 
-**Estado actual:** 484 tests pasando · 68 tests nuevos en v3.1.0
+**Estado:** 484 tests pasando · 68 tests nuevos en v3.1.0
 
 ---
 
@@ -257,7 +245,7 @@ pytest tests/test_server.py -v
 src/godot_mcp/
 ├── server.py              # Entry point FastMCP
 ├── session_manager.py     # Gestión de sesiones
-├── core/                  # Núcleo
+├── core/                  # Núcleo operatorio
 │   ├── tscn_parser.py     # Parser de escenas Godot
 │   ├── tres_parser.py     # Parser de recursos
 │   ├── tscn_validator.py  # Validador de escenas
