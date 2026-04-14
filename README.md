@@ -6,135 +6,125 @@
 [![Version](https://img.shields.io/badge/Version-3.1.0-6f42c1)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> *"La técnica es una actividad compositora o destructora, violenta, y esto es lo que Aristóteles llamaba la poiesis, la poesía, precisamente."* — Gustavo Bueno
+> *"Technique is a compositive or destructive activity, violent, and this is what Aristotle called poiesis, poetry, precisely."* — Gustavo Bueno
 
-**Ultra Godot MCP** — *Plus Ultra*: ir más allá.
+**Ultra Godot MCP** — *Plus Ultra*: go beyond.
 
-Servidor MCP para Godot Engine que permite a IAs y asistentes controlar proyectos directamente: crear escenas, manipular nodos, gestionar recursos y validar código, **todo sin abrir el editor**.
+MCP server for Godot Engine that allows AIs and assistants to control projects directly: create scenes, manipulate nodes, manage resources, and validate code, **all without opening the editor**.
 
 ---
 
-## ✨ Características
+## ✨ Features
 
-| Característica | Descripción |
+| Feature | Description |
 |---|---|
-| 🔍 **Parsing nativo TSCN** | Lee y escribe archivos `.tscn` directamente, sin Godot headless |
-| 🛠️ **42 herramientas** | Escenas, nodos, recursos, scripts, señales, validación y debug |
-| 🎯 **Inspector unificado** | `set_node_properties` maneja TODOS los tipos de propiedad automáticamente |
-| 🔄 **Sesiones en memoria** | Workspace con dirty tracking, lazy loading y cache LRU |
-| 🛡️ **Validación Poka-Yoke** | Previene errores antes de escribir archivos |
-| 🔎 **Búsqueda fuzzy** | Encuentra nodos tolerando typos con `fuzzywuzzy` |
-| 📦 **Templates** | Genera estructuras de nodos y scripts GDScript desde plantillas |
-| 🐛 **Debug** | 2 herramientas que requieren Godot instalado (las demás funcionan sin él) |
+| 🔍 **Native TSCN parsing** | Reads and writes `.tscn` files directly, no Godot headless |
+| 🛠️ **42 tools** | Scenes, nodes, resources, scripts, signals, validation, and debug |
+| 🎯 **Unified inspector** | `set_node_properties` handles ALL property types automatically |
+| 🔄 **In-memory sessions** | Workspace with dirty tracking, lazy loading, and LRU cache |
+| 🛡️ **Poka-Yoke validation** | Prevents errors before writing files |
+| 🔎 **Fuzzy search** | Finds nodes tolerating typos with `fuzzywuzzy` |
+| 📦 **Templates** | Generates node structures and GDScript boilerplate from templates |
+| 🐛 **Debug** | 2 tools that require Godot installed (the rest work without it) |
 
 ---
 
-## 🏆 Frente a otros MCPs de Godot
+## 🏆 Why Ultra Godot MCP?
 
-### Velocidad: composición directa vs. intermediación
+### Speed: direct composition vs. intermediation
 
-La diferencia principal: otros MCPs lanzan `godot --headless --script` por cada operación (2-5s de overhead). Ultra Godot MCP lee y escribe `.tscn` directamente con su parser nativo — milisegundos.
+The main difference: other MCPs launch `godot --headless --script` per operation (2-5s overhead). Ultra Godot MCP reads and writes `.tscn` directly with its native parser — milliseconds.
 
-| Operación | [godot-mcp](https://github.com/Coding-Solo/godot-mcp) (3.1k⭐) | [GoPeak](https://github.com/GoD0Yun/Gopeak-godot-mcp) (125⭐) | Ultra Godot MCP |
+| Operation | [godot-mcp](https://github.com/Coding-Solo/godot-mcp) (3.1k⭐) | [GoPeak](https://github.com/HaD0Yun/Gopeak-godot-mcp) (125⭐) | Ultra Godot MCP |
 |---|---|---|---|
-| Leer escena | ~2-5s (Godot headless) | ~2-5s (Godot headless) | <10ms (parser nativo) |
-| Añadir nodo | ~2-5s | ~2-5s | <5ms |
-| Validar proyecto | ~10-30s | ~10-30s | <500ms |
+| Read scene | ~2-5s (Godot headless) | ~2-5s (Godot headless) | <10ms (native parser) |
+| Add node | ~2-5s | ~2-5s | <5ms |
+| Validate project | ~10-30s | ~10-30s | <500ms |
 
-### Comparativa completa
+### Full comparison
 
-| Dimensión | [godot-mcp](https://github.com/Coding-Solo/godot-mcp) | [GoPeak](https://github.com/GoD0Yun/Gopeak-godot-mcp) | [tugcantopaloglu/godot-mcp](https://github.com/tugcantopaloglu/godot-mcp) | [gdai-mcp](https://github.com/3ddelano/gdai-mcp-plugin-godot) | **Ultra Godot MCP** |
+| Dimension | [godot-mcp](https://github.com/Coding-Solo/godot-mcp) | [GoPeak](https://github.com/HaD0Yun/Gopeak-godot-mcp) | [tugcantopaloglu/godot-mcp](https://github.com/tugcantopaloglu/godot-mcp) | [gdai-mcp](https://github.com/3ddelano/gdai-mcp-plugin-godot) | **Ultra Godot MCP** |
 |---|---|---|---|---|---|
-| **Herramientas** | ~15 | 95+ | 149 | ~12 | **38** |
-| **Parsing** | Godot headless | Godot headless | Godot headless | Plugin Godot | **Nativo Python** |
-| **Velocidad** | Lento (2-5s/op) | Lento (2-5s/op) | Lento (2-5s/op) | Medio | **<10ms** |
-| **Sin Godot instalado** | ❌ | ❌ | ❌ | ❌ | **✅** |
-| **Sesiones en memoria** | ❌ | ❌ | ❌ | ❌ | **✅** |
-| **Cache LRU** | ❌ | ❌ | ❌ | ❌ | **✅** |
-| **Validación Poka-Yoke** | ❌ | ❌ | ❌ | ❌ | **✅** |
-| **Búsqueda fuzzy** | ❌ | ❌ | ❌ | ❌ | **✅** |
+| **Tools** | ~15 | 95+ | 149 | ~12 | **42** |
+| **Parsing** | Godot headless | Godot headless | Godot headless | Godot plugin | **Native Python** |
+| **Speed** | Slow (2-5s/op) | Slow (2-5s/op) | Slow (2-5s/op) | Medium | **<10ms** |
+| **No Godot required** | ❌ | ❌ | ❌ | ❌ | **✅** |
+| **In-memory sessions** | ❌ | ❌ | ❌ | ❌ | **✅** |
+| **LRU Cache** | ❌ | ❌ | ❌ | ❌ | **✅** |
+| **Poka-Yoke validation** | ❌ | ❌ | ❌ | ❌ | **✅** |
+| **Fuzzy search** | ❌ | ❌ | ❌ | ❌ | **✅** |
 | **Templates** | ❌ | ❌ | ❌ | ❌ | **✅** |
-| **Docs en español** | ❌ | ❌ | ❌ | ❌ | **✅** |
 
-> **Nota:** GoPeak y tugcantopaloglu tienen más herramientas en número, pero cada operación requiere lanzar Godot headless. Ultra Godot MCP prioriza velocidad: 42 herramientas (40 sin Godot + 2 debug que lo requieren).
+> **Note:** GoPeak and tugcantopaloglu have more tools in raw numbers, but each operation requires launching Godot headless. Ultra Godot MCP prioritizes speed: 42 tools (40 without Godot + 2 debug that require it).
 
-### Comparativa de funcionalidades
+### Feature comparison
 
-| Funcionalidad | [godot-mcp](https://github.com/Coding-Solo/godot-mcp) | [GoPeak](https://github.com/HaD0Yun/Gopeak-godot-mcp) | [tugcantopaloglu/godot-mcp](https://github.com/tugcantopaloglu/godot-mcp) | [gdai-mcp](https://github.com/3ddelano/gdai-mcp-plugin-godot) | **Ultra Godot MCP** |
+| Feature | [godot-mcp](https://github.com/Coding-Solo/godot-mcp) | [GoPeak](https://github.com/HaD0Yun/Gopeak-godot-mcp) | [tugcantopaloglu/godot-mcp](https://github.com/tugcantopaloglu/godot-mcp) | [gdai-mcp](https://github.com/3ddelano/gdai-mcp-plugin-godot) | **Ultra Godot MCP** |
 |---|---|---|---|---|---|
-| **Parser nativo TSCN** | ❌ | ❌ | ❌ | ❌ | **✅** |
-| **Sin Godot instalado** | ❌ | ❌ | ❌ | ❌ | **✅** (40/42 tools) |
-| **Sesiones en memoria** | ❌ | ❌ | ❌ | ❌ | **✅** |
-| **Cache LRU** | ❌ | ❌ | ❌ | ❌ | **✅** |
-| **Validación Poka-Yoke** | ❌ | ❌ | ❌ | ❌ | **✅** |
-| **Búsqueda fuzzy** | ❌ | ❌ | ❌ | ❌ | **✅** |
+| **Native TSCN parsing** | ❌ | ❌ | ❌ | ❌ | **✅** |
+| **No Godot installed** | ❌ | ❌ | ❌ | ❌ | **✅** (40/42 tools) |
+| **In-memory sessions** | ❌ | ❌ | ❌ | ❌ | **✅** |
+| **LRU Cache** | ❌ | ❌ | ❌ | ❌ | **✅** |
+| **Poka-Yoke validation** | ❌ | ❌ | ❌ | ❌ | **✅** |
+| **Fuzzy search** | ❌ | ❌ | ❌ | ❌ | **✅** |
 | **Templates** | ❌ | ❌ | ❌ | ❌ | **✅** |
-| **Inspector unificado** | ❌ | ✅ | ❌ | ❌ | **✅** |
-| **Asignación de recursos a nodos** | ❌ (Solo sprites) | ✅ (Requiere addon) | ✅ | ✅ | **✅ (Automático)** |
-| **Conexión de señales** | ❌ | ✅ | ✅ | ❌ | **✅** |
-| **Gestión de recursos** | ❌ | ✅ | ✅ | ✅ | **✅** |
+| **Unified inspector** | ❌ | ✅ | ❌ | ❌ | **✅** |
+| **Resource assignment to nodes** | ❌ (Sprites only) | ✅ (Requires addon) | ✅ | ✅ | **✅ (Automatic)** |
+| **Signal connections** | ❌ | ✅ | ✅ | ❌ | **✅** |
+| **Resource management** | ❌ | ✅ | ✅ | ✅ | **✅** |
 | **UIDs (Godot 4.4+)** | ✅ | ✅ | ✅ | ❌ | **✅** |
-| **LSP (autocompletado)** | ❌ | ✅ | ❌ | ❌ | ❌ |
+| **LSP (autocompletion)** | ❌ | ✅ | ❌ | ❌ | ❌ |
 | **DAP (debugger)** | ❌ | ✅ | ❌ | ❌ | ❌ |
 | **Runtime inspection** | ❌ | ✅ | ❌ | ✅ | ❌ |
 | **Screenshots/input** | ❌ | ✅ | ❌ | ❌ | ❌ |
 | **Asset library** | ❌ | ✅ | ❌ | ❌ | ❌ |
 | **Project visualizer** | ❌ | ✅ | ❌ | ❌ | ❌ |
 | **Export mesh library** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Docs en español** | ❌ | ❌ | ❌ | ❌ | **✅** |
-| **Instalación** | `npx` (npm) | `npx` (npm) | npm | Addon Godot | **`pip` (Python)** |
+| **Installation** | `npx` (npm) | `npx` (npm) | npm | Godot addon | **`pip` (Python)** |
 
-> **Lo que tenemos y ellos no:** Parser nativo, sesiones en memoria, cache LRU, validación Poka-Yoke, búsqueda fuzzy, templates, docs en español.
+> **What we have and they don't:** Native parser, in-memory sessions, LRU cache, Poka-Yoke validation, fuzzy search, templates.
 >
-> **Lo que ellos tienen y nosotros no:** LSP (autocompletado GDScript), DAP (debugger con breakpoints), runtime inspection, screenshots/input injection, asset library, project visualizer.
-
-### 🌎 Hecho para la comunidad hispanohablante y lusófona
-
-La comunidad de Godot en español y portugués es enorme, pero las herramientas de IA para desarrollo de juegos están diseñadas exclusivamente en inglés. Ultra Godot MCP nace de esa realidad:
-
-- **Documentación en español**: guías, errores y referencia técnica en tu idioma
-- **Creado por y para** desarrolladores de España, México, Argentina, Colombia, Brasil, Portugal y toda Iberoamérica
-- **Sin barrera idiomática**: porque hacer juegos no debería requerir hablar inglés
+> **What they have and we don't:** LSP (GDScript autocompletion), DAP (breakpoint debugger), runtime inspection, screenshots/input injection, asset library, project visualizer.
 
 ---
 
-## 📥 Instalación
+## 📥 Installation
 
-### Desde PyPI (próximamente)
+### From PyPI (coming soon)
 
 ```bash
 pip install godot-mcp
 ```
 
-### Desde fuente
+### From source
 
 ```bash
 git clone https://github.com/lenin-iberofono/godot-mcp.git
 cd godot-mcp
 
 pip install -e .
-# O con dependencias de desarrollo:
+# Or with dev dependencies:
 pip install -e ".[dev]"
 ```
 
-### Requisitos
+### Requirements
 
 - **Python 3.10+**
-- **Godot 4.6+** (opcional, solo para tools de debug) |
+- **Godot 4.6+** (optional, only for debug tools)
 
 ---
 
-## 🚀 Inicio rápido
+## 🚀 Quick Start
 
-### 1. Iniciar el servidor
+### 1. Start the server
 
 ```bash
 godot-mcp
-# O como módulo:
+# Or as module:
 python -m godot_mcp.server
 ```
 
-### 2. Configurar en tu cliente MCP
+### 2. Configure in your MCP client
 
 ```json
 {
@@ -142,185 +132,185 @@ python -m godot_mcp.server
     "godot": {
       "command": "python",
       "args": ["-m", "godot_mcp.server"],
-      "cwd": "/ruta/a/tu/proyecto-godot"
+      "cwd": "/path/to/your/godot-project"
     }
   }
 }
 ```
 
-### 3. Usar con tu asistente IA
+### 3. Use with your AI assistant
 
 ```
-→ "Crea una escena Player con CharacterBody2D, CollisionShape2D y Sprite2D"
-→ "Añade un script de movimiento al jugador"
-→ "Conecta la señal body_entered del Area2D al jugador"
-→ "Valida que todas las escenas del proyecto estén correctas"
+→ "Create a Player scene with CharacterBody2D, CollisionShape2D, and Sprite2D"
+→ "Add a movement script to the player"
+→ "Connect the body_entered signal from Area2D to the player"
+→ "Validate that all project scenes are correct"
 ```
 
 ---
 
-## 🛠️ Herramientas
+## 🛠️ Tools
 
-### Sesión
-| Herramienta | Descripción |
+### Session
+| Tool | Description |
 |---|---|
-| `start_session` | Crear sesión para un proyecto Godot |
-| `end_session` | Cerrar sesión y guardar cambios |
-| `get_active_session` | Obtener la sesión activa actual |
-| `get_session_info` | Información de una sesión |
-| `list_sessions` | Listar sesiones activas |
-| `commit_session` | Guardar cambios a disco |
-| `discard_changes` | Descartar cambios sin guardar |
+| `start_session` | Create a session for a Godot project |
+| `end_session` | Close session and save changes |
+| `get_active_session` | Get the current active session |
+| `get_session_info` | Information about a session |
+| `list_sessions` | List active sessions |
+| `commit_session` | Save changes to disk |
+| `discard_changes` | Discard changes without saving |
 
-### Escenas
-| Herramienta | Descripción |
+### Scenes
+| Tool | Description |
 |---|---|
-| `create_scene` | Crear nueva escena `.tscn` |
-| `get_scene_tree` | Obtener jerarquía completa de nodos |
-| `save_scene` | Guardar escena a disco |
-| `list_scenes` | Listar todas las escenas del proyecto |
-| `instantiate_scene` | Instanciar una escena como nodo hijo |
-| `modify_scene` | Modificar tipo/nombre del root de una escena |
+| `create_scene` | Create new `.tscn` scene |
+| `get_scene_tree` | Get full node hierarchy |
+| `save_scene` | Save scene to disk |
+| `list_scenes` | List all project scenes |
+| `instantiate_scene` | Instantiate a scene as a child node |
+| `modify_scene` | Modify root node type/name of a scene |
 
-### Nodos
-| Herramienta | Descripción |
+### Nodes
+| Tool | Description |
 |---|---|
-| `add_node` | Añadir nodo a una escena |
-| `remove_node` | Eliminar nodo |
-| `update_node` | Actualizar propiedades de un nodo |
-| `rename_node` | Renombrar nodo |
-| `move_node` | Reparentar nodo |
-| `duplicate_node` | Duplicar nodo y sus hijos |
-| `find_nodes` | Buscar nodos por nombre o tipo (con fuzzy matching) |
-| `get_node_properties` | Obtener todas las propiedades de un nodo |
+| `add_node` | Add a node to a scene |
+| `remove_node` | Remove a node |
+| `update_node` | Update node properties |
+| `rename_node` | Rename a node |
+| `move_node` | Reparent a node |
+| `duplicate_node` | Duplicate a node and its children |
+| `find_nodes` | Find nodes by name or type (with fuzzy matching) |
+| `get_node_properties` | Get all properties of a node |
 
-### 🔥 Inspector Unificado
+### 🔥 Unified Inspector
 
 ```python
 set_node_properties(session_id, scene_path, node_path, properties={...})
 ```
 
-Maneja **automáticamente** todos los tipos:
+Handles **automatically** all types:
 
-| Tipo | Ejemplo |
+| Type | Example |
 |---|---|
-| **Texturas** | `"texture": "res://sprites/player.png"` → crea ExtResource |
-| **Shapes** | `"shape": {"shape_type": "CapsuleShape2D", "radius": 16.0}` → crea SubResource |
-| **Scripts** | `"script": "res://scripts/player.gd"` → crea ExtResource |
-| **Colores** | `"modulate": {"type": "Color", "r": 1, "g": 0.5, "b": 0.5, "a": 1}` |
-| **Vectores** | `"position": {"type": "Vector2", "x": 100, "y": 200}` |
+| **Textures** | `"texture": "res://sprites/player.png"` → creates ExtResource |
+| **Shapes** | `"shape": {"shape_type": "CapsuleShape2D", "radius": 16.0}` → creates SubResource |
+| **Scripts** | `"script": "res://scripts/player.gd"` → creates ExtResource |
+| **Colors** | `"modulate": {"type": "Color", "r": 1, "g": 0.5, "b": 0.5, "a": 1}` |
+| **Vectors** | `"position": {"type": "Vector2", "x": 100, "y": 200}` |
 | **Enums** | `"motion_mode": "MOTION_MODE_GROUNDED"` |
-| **Simples** | `"text": "Hello", "visible": true` |
+| **Simple** | `"text": "Hello", "visible": true` |
 
-### Recursos
-| Herramienta | Descripción |
+### Resources
+| Tool | Description |
 |---|---|
-| `create_resource` | Crear recurso `.tres` |
-| `read_resource` | Leer propiedades de un `.tres` |
-| `update_resource` | Actualizar propiedades de recurso |
-| `add_ext_resource` | Añadir referencia externa a escena |
-| `add_sub_resource` | Crear recurso embebido en escena |
-| `list_resources` | Listar recursos del proyecto |
-| `get_uid` | Obtener UID de recurso (Godot 4.4+) |
-| `update_project_uids` | Actualizar todos los UIDs del proyecto |
+| `create_resource` | Create `.tres` resource |
+| `read_resource` | Read `.tres` properties |
+| `update_resource` | Update resource properties |
+| `add_ext_resource` | Add external reference to scene |
+| `add_sub_resource` | Create embedded resource in scene |
+| `list_resources` | List project resources |
+| `get_uid` | Get resource UID (Godot 4.4+) |
+| `update_project_uids` | Update all project UIDs |
 
-### Scripts y Señales
-| Herramienta | Descripción |
+### Scripts & Signals
+| Tool | Description |
 |---|---|
-| `set_script` | Adjuntar script `.gd` a un nodo |
-| `connect_signal` | Conectar señal entre nodos |
+| `set_script` | Attach `.gd` script to a node |
+| `connect_signal` | Connect signal between nodes |
 
-### Proyecto
-| Herramienta | Descripción |
+### Project
+| Tool | Description |
 |---|---|
-| `get_project_info` | Metadata del proyecto |
-| `get_project_structure` | Estructura completa (escenas, scripts, assets) |
-| `find_scripts` | Buscar scripts `.gd` |
-| `find_resources` | Buscar recursos `.tres` |
-| `list_projects` | Encontrar proyectos Godot en un directorio |
+| `get_project_info` | Project metadata |
+| `get_project_structure` | Full structure (scenes, scripts, assets) |
+| `find_scripts` | Find `.gd` scripts |
+| `find_resources` | Find `.tres` resources |
+| `list_projects` | Find Godot projects in a directory |
 
-### Validación
-| Herramienta | Descripción |
+### Validation
+| Tool | Description |
 |---|---|
-| `validate_tscn` | Validar archivo `.tscn` (parser nativo, sin Godot) |
-| `validate_gdscript` | Validar script `.gd` (parser nativo, sin Godot) |
-| `validate_project` | Validar proyecto completo (parser nativo, sin Godot) |
+| `validate_tscn` | Validate `.tscn` file (native parser, no Godot) |
+| `validate_gdscript` | Validate `.gd` script (native parser, no Godot) |
+| `validate_project` | Validate full project (native parser, no Godot) |
 
 ### 🔧 Debug
-> ⚠️ Estas 2 herramientas **sí requieren Godot instalado**. Son las únicas que lanzan el motor.
+> ⚠️ These 2 tools **do require Godot installed**. They are the only ones that launch the engine.
 
-| Herramienta | Descripción |
+| Tool | Description |
 |---|---|
-| `run_debug_scene` | Ejecutar escena en modo headless y capturar errores, warnings y prints |
-| `check_script_syntax` | Verificar sintaxis GDScript con `--check-only` de Godot |
+| `run_debug_scene` | Run scene in headless mode and capture errors, warnings, and prints |
+| `check_script_syntax` | Check GDScript syntax with Godot's `--check-only` |
 
 ---
 
-## 📚 Documentación
+## 📚 Documentation
 
-| Documento | Contenido |
+| Document | Content |
 |---|---|
-| [TOOLS.md](docs/TOOLS.md) | Referencia completa de cada herramienta |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Diseño interno, sesiones y cache |
-| [COMMON_ERRORS.md](docs/COMMON_ERRORS.md) | Errores frecuentes y soluciones |
-| [TESTS.md](docs/TESTS.md) | Métricas de testing y cobertura |
-| [CHANGELOG.md](CHANGELOG.md) | Historial de versiones |
+| [TOOLS.md](docs/TOOLS.md) | Complete reference for each tool |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Internal design, sessions, and cache |
+| [COMMON_ERRORS.md](docs/COMMON_ERRORS.md) | Common errors and solutions |
+| [TESTS.md](docs/TESTS.md) | Testing metrics and coverage |
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
 
 ---
 
 ## 🧪 Testing
 
 ```bash
-pytest tests/              # Todos los tests
-pytest --cov=godot_mcp     # Con coverage
-pytest tests/e2e/          # Solo E2E
-pytest tests/test_server.py -v  # Tests específicos
+pytest tests/              # All tests
+pytest --cov=godot_mcp     # With coverage
+pytest tests/e2e/          # E2E only
+pytest tests/test_server.py -v  # Specific tests
 ```
 
-**Estado:** 484 tests pasando · 68 tests nuevos en v3.1.0
+**Status:** 484 tests passing · 68 new tests in v3.1.0
 
 ---
 
-## 🏗️ Arquitectura
+## 🏗️ Architecture
 
 ```
 src/godot_mcp/
-├── server.py              # Entry point FastMCP
-├── session_manager.py     # Gestión de sesiones
-├── core/                  # Núcleo
-│   ├── tscn_parser.py     # Parser de escenas Godot
-│   ├── tres_parser.py     # Parser de recursos
-│   ├── tscn_validator.py  # Validador de escenas
-│   ├── gdscript_validator.py  # Validador de scripts
-│   ├── cache.py           # Cache LRU
-│   ├── models.py          # Modelos Pydantic
-│   └── project_index.py   # Índice de proyectos
-├── tools/                 # Herramientas MCP
-│   ├── scene_tools.py     # Operaciones de escenas
-│   ├── node_tools.py      # Operaciones de nodos
-│   ├── resource_tools.py  # Gestión de recursos
-│   ├── session_tools.py   # Gestión de sesiones
-│   ├── project_tools.py   # Operaciones de proyecto
-│   ├── validation_tools.py  # Validación
-│   ├── signal_and_script_tools.py  # Señales y scripts
-│   ├── property_tools.py   # Inspector unificado
+├── server.py              # FastMCP entry point
+├── session_manager.py     # Session management
+├── core/                  # Core
+│   ├── tscn_parser.py     # Godot scene parser
+│   ├── tres_parser.py     # Resource parser
+│   ├── tscn_validator.py  # Scene validator
+│   ├── gdscript_validator.py  # Script validator
+│   ├── cache.py           # LRU cache
+│   ├── models.py          # Pydantic models
+│   └── project_index.py   # Project index
+├── tools/                 # MCP tools
+│   ├── scene_tools.py     # Scene operations
+│   ├── node_tools.py      # Node operations
+│   ├── resource_tools.py  # Resource management
+│   ├── session_tools.py   # Session management
+│   ├── project_tools.py   # Project operations
+│   ├── validation_tools.py  # Validation
+│   ├── signal_and_script_tools.py  # Signals & scripts
+│   ├── property_tools.py   # Unified inspector
 │   └── debug_tools.py     # Debug
 └── templates/             # Templates
-    ├── node_templates.py  # Templates de nodos
-    └── script_templates.py  # Templates de scripts
+    ├── node_templates.py  # Node templates
+    └── script_templates.py  # Script templates
 ```
 
 ---
 
-## 📄 Licencia
+## 📄 License
 
-**MIT** — ver [LICENSE](LICENSE) para detalles.
+**MIT** — see [LICENSE](LICENSE) for details.
 
 ---
 
 <div align="center">
 
-**Por los trabajadores y los iberófonos del mundo** 🌍
+**For the workers and the Iberophones of the world** 🌍
 
 🇪🇸🇲🇽🇦🇷🇨🇴🇵🇪🇨🇱🇻🇪🇧🇴🇪🇨🇬🇹🇭🇳🇳🇮🇵🇾🇸🇻🇺🇾🇩🇴🇵🇷🇬🇶🇵🇭🇦🇩🇧🇿🇵🇹🇧🇷🇦🇴🇲🇿🇨🇻🇬🇼🇸🇹🇹🇱🇲🇴
 

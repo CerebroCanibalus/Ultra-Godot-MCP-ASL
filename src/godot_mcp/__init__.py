@@ -16,4 +16,4 @@ Version: 3.1.0
 
 __version__ = "3.1.0"
 __title__ = "godot-mcp"
-__description__ = "Ultra Godot MCP - Plus Ultra: ir más allá"
+__description__ = "Ultra Godot MCP - Plus Ultra: go beyond"

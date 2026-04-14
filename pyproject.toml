@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "godot-mcp"
 version = "3.1.0"
-description = "Ultra Godot MCP - Plus Ultra: el servidor MCP más rápido y completo para Godot Engine con parsing nativo de TSCN"
+description = "Ultra Godot MCP - Plus Ultra: the fastest and most complete MCP server for Godot Engine with native TSCN parsing"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
