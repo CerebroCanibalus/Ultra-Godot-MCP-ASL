@@ -99,8 +99,8 @@ pip install godot-mcp
 ### From source
 
 ```bash
-git clone https://github.com/lenin-iberofono/godot-mcp.git
-cd godot-mcp
+git clone https://github.com/CerebroCanibalus/Ultra-Godot-MCP-ASL.git
+cd Ultra-Godot-MCP-ASL
 
 pip install -e .
 # Or with dev dependencies:
