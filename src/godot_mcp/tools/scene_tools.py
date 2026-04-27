@@ -59,6 +59,7 @@ def create_scene(
     scene_path: str,
     root_type: str = "Node2D",
     root_name: str = "Root",
+    inherits: str = "",
 ) -> dict:
     """
     Create a new scene in the project.
@@ -69,6 +70,7 @@ def create_scene(
         scene_path: Relative path for the scene (e.g., "scenes/Player.tscn").
         root_type: Godot node type for root (default: "Node2D").
         root_name: Name for root node (default: "Root").
+        inherits: Optional path to base scene for inherited scenes (e.g., "res://scenes/Base.tscn").
 
     Returns:
         Dict with success status and scene info.
@@ -108,16 +110,23 @@ def create_scene(
             os.makedirs(scene_dir, exist_ok=True)
 
         # Create basic scene
-        scene = Scene(
-            header=GdSceneHeader(load_steps=2, format=3),
-            nodes=[
-                SceneNode(
-                    name=root_name,
-                    type=root_type,
-                    parent=".",
-                )
-            ],
-        )
+        if inherits:
+            # Inherited scene: no root node, inherits from base scene
+            scene = Scene(
+                header=GdSceneHeader(load_steps=2, format=3, inherits=inherits),
+                nodes=[],
+            )
+        else:
+            scene = Scene(
+                header=GdSceneHeader(load_steps=2, format=3),
+                nodes=[
+                    SceneNode(
+                        name=root_name,
+                        type=root_type,
+                        parent=".",
+                    )
+                ],
+            )
 
         # Validate before writing
         validator = TSCNValidator(project_path=project_path)
@@ -142,12 +151,15 @@ def create_scene(
         cache = _get_scene_cache()
         cache.set(full_scene_path, scene)
 
-        return {
+        result = {
             "success": True,
             "scene_path": scene_path,
-            "root_type": root_type,
-            "root_name": root_name,
+            "root_type": root_type if not inherits else None,
+            "root_name": root_name if not inherits else None,
         }
+        if inherits:
+            result["inherits"] = inherits
+        return result
 
     except Exception as e:
         return {
@@ -237,6 +249,7 @@ def save_scene(
                 format=header_data.get("format", 3),
                 uid=header_data.get("uid", ""),
                 scene_unique_name=header_data.get("scene_unique_name", ""),
+                inherits=header_data.get("inherits", ""),
             )
 
         # Parse external resources
@@ -517,6 +530,9 @@ def instantiate_scene(
     node_name: str,
     parent_node_path: str = ".",
     project_path: str | None = None,
+    editable_children: bool = False,
+    unique_name_in_owner: bool = False,
+    owner: str = "",
 ) -> dict:
     """
     Instantiate a scene as a node in another scene.
@@ -530,6 +546,10 @@ def instantiate_scene(
         project_path: Absolute path to the Godot project root. If provided,
             generates clean res:// paths relative to the project.
             Required when scenes are in different directories.
+        editable_children: If True, marks this instance's children as editable
+            in the parent scene (Godot 4.x [editable path="..."] format).
+        unique_name_in_owner: If True, the node can be referenced with %name in GDScript.
+        owner: Optional owner node path (Godot ownership system).
 
     Returns:
         Dict with success status or error message.
@@ -653,9 +673,22 @@ def instantiate_scene(
             type="",  # Empty type - Godot infers from instance
             parent=resolved_parent,
             instance=ext_id,  # ExtResource ID in header, not as property
+            unique_name_in_owner=unique_name_in_owner,
+            owner=owner,
         )
 
         parent.nodes.append(new_node)
+
+        # If editable_children is requested, add [editable path="..."] entry
+        if editable_children:
+            from godot_mcp.core.tscn_parser import EditablePath
+            # Build the full node path for the editable declaration
+            if resolved_parent == ".":
+                editable_node_path = node_name
+            else:
+                editable_node_path = f"{resolved_parent}/{node_name}"
+            parent.editable_paths.append(EditablePath(path=editable_node_path))
+            logger.info(f"Marked children as editable: {editable_node_path}")
 
         # WORKAROUND: Deduplicate ExtResources before saving
         # Uses filesystem resolution when project_path is available to catch
@@ -692,6 +725,213 @@ def instantiate_scene(
         }
 
 
+@require_session
+def set_editable_paths(
+    session_id: str,
+    scene_path: str,
+    paths: list[str],
+) -> dict:
+    """
+    Set editable child paths for instantiated scenes (Godot 4.x format).
+
+    In Godot 4.x, editable children are declared as [editable path="..."]
+    lines at the end of the TSCN file, NOT as node attributes.
+
+    Args:
+        session_id: Session ID from start_session.
+        scene_path: Path to the .tscn file.
+        paths: List of node paths to mark as editable (e.g., ["Kitchen", "Kitchen/Door"]).
+               These are typically the paths of instantiated scene nodes whose
+               children you want to be able to modify.
+
+    Returns:
+        Dict with success status and list of editable paths set.
+
+    Example:
+        set_editable_paths(
+            scene_path="scenes/Day2.tscn",
+            paths=["Kitchen", "Kitchen/Door", "Kitchen/Entities/Table", "IngredientsRoom"]
+        )
+    """
+    try:
+        scene_path = _ensure_tscn_path(scene_path)
+
+        if not os.path.exists(scene_path):
+            return {
+                "success": False,
+                "error": f"Scene file not found: {scene_path}",
+            }
+
+        scene = parse_tscn(scene_path)
+
+        from godot_mcp.core.tscn_parser import EditablePath
+
+        # Clear existing editable paths
+        old_count = len(scene.editable_paths)
+        scene.editable_paths = []
+
+        # Add new editable paths
+        for path in paths:
+            scene.editable_paths.append(EditablePath(path=path))
+
+        # Save
+        with open(scene_path, "w", encoding="utf-8") as f:
+            f.write(scene.to_tscn())
+
+        # Mark as dirty
+        _mark_scene_dirty(scene_path)
+
+        # Invalidate cache
+        cache = _get_scene_cache()
+        cache.invalidate(scene_path)
+
+        return {
+            "success": True,
+            "scene_path": scene_path,
+            "paths_set": paths,
+            "paths_count": len(paths),
+            "old_count": old_count,
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+
+@require_session
+def remove_ext_resource(
+    session_id: str,
+    scene_path: str,
+    resource_id: str,
+) -> dict:
+    """
+    Remove an external resource from a scene.
+
+    Args:
+        session_id: Session ID from start_session.
+        scene_path: Path to the .tscn file.
+        resource_id: ID of the ExtResource to remove (e.g., "1", "2_abc").
+
+    Returns:
+        Dict with success status.
+    """
+    try:
+        scene_path = _ensure_tscn_path(scene_path)
+
+        if not os.path.exists(scene_path):
+            return {
+                "success": False,
+                "error": f"Scene file not found: {scene_path}",
+            }
+
+        scene = parse_tscn(scene_path)
+
+        # Find the resource
+        found = False
+        for i, ext in enumerate(scene.ext_resources):
+            if ext.id == resource_id:
+                scene.ext_resources.pop(i)
+                found = True
+                break
+
+        if not found:
+            return {
+                "success": False,
+                "error": f"ExtResource '{resource_id}' not found in scene",
+            }
+
+        # Save
+        with open(scene_path, "w", encoding="utf-8") as f:
+            f.write(scene.to_tscn())
+
+        # Mark as dirty
+        _mark_scene_dirty(scene_path)
+
+        # Invalidate cache
+        cache = _get_scene_cache()
+        cache.invalidate(scene_path)
+
+        return {
+            "success": True,
+            "scene_path": scene_path,
+            "removed_resource_id": resource_id,
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+
+@require_session
+def remove_sub_resource(
+    session_id: str,
+    scene_path: str,
+    resource_id: str,
+) -> dict:
+    """
+    Remove a sub-resource from a scene.
+
+    Args:
+        session_id: Session ID from start_session.
+        scene_path: Path to the .tscn file.
+        resource_id: ID of the SubResource to remove (e.g., "RectangleShape2D_abc123").
+
+    Returns:
+        Dict with success status.
+    """
+    try:
+        scene_path = _ensure_tscn_path(scene_path)
+
+        if not os.path.exists(scene_path):
+            return {
+                "success": False,
+                "error": f"Scene file not found: {scene_path}",
+            }
+
+        scene = parse_tscn(scene_path)
+
+        # Find the resource
+        found = False
+        for i, sub in enumerate(scene.sub_resources):
+            if sub.id == resource_id:
+                scene.sub_resources.pop(i)
+                found = True
+                break
+
+        if not found:
+            return {
+                "success": False,
+                "error": f"SubResource '{resource_id}' not found in scene",
+            }
+
+        # Save
+        with open(scene_path, "w", encoding="utf-8") as f:
+            f.write(scene.to_tscn())
+
+        # Mark as dirty
+        _mark_scene_dirty(scene_path)
+
+        # Invalidate cache
+        cache = _get_scene_cache()
+        cache.invalidate(scene_path)
+
+        return {
+            "success": True,
+            "scene_path": scene_path,
+            "removed_resource_id": resource_id,
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+
 # ==================== Registro de Herramientas ====================
 
 
@@ -708,3 +948,6 @@ def register_scene_tools(mcp: FastMCP) -> None:
     mcp.add_tool(list_scenes)
     mcp.add_tool(instantiate_scene)
     mcp.add_tool(modify_scene)
+    mcp.add_tool(set_editable_paths)
+    mcp.add_tool(remove_ext_resource)
+    mcp.add_tool(remove_sub_resource)

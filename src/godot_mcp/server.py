@@ -20,6 +20,25 @@ from .tools.validation_tools import register_validation_tools
 from .tools.signal_and_script_tools import register_signal_and_script_tools
 from .tools.property_tools import register_property_tools
 from .tools.debug_tools import register_debug_tools
+# Capa 2: Godot CLI Bridge (v4.0.0)
+from .godot_cli.export_tools import register_export_tools
+from .godot_cli.runtime_tools import register_runtime_tools
+from .godot_cli.import_tools import register_import_tools
+from .godot_cli.screenshot_tools import register_screenshot_tools
+from .godot_cli.movie_tools import register_movie_tools
+# Capa 3: LSP/DAP Native (v4.0.0)
+from .lsp_dap.lsp_tools import register_lsp_tools
+from .lsp_dap.dap_tools import register_dap_tools
+# Capa 4: Project Intelligence (v4.0.0)
+from .intelligence.dependency_tools import register_dependency_tools
+from .intelligence.signal_graph_tools import register_signal_graph_tools
+from .intelligence.code_analysis_tools import register_code_analysis_tools
+# Capa 5: Skeleton Tools (v4.1.0)
+from .tools.skeleton_tools import register_skeleton_tools
+# Capa 6: Array Operations (v4.2.0)
+from .tools.array_tools import register_array_tools
+# Capa 7: Resource Builder (v4.3.0)
+from .tools.resource_builder_tools import register_resource_builder_tools
 
 # Inicializar FastMCP con nombre "godot-mcp"
 mcp = FastMCP("godot-mcp")
@@ -99,6 +118,103 @@ def register_all_tools() -> None:
         logger.info("[OK] Debug tools registradas")
     except Exception as e:
         logger.error(f"Error al registrar debug_tools: {e}")
+        raise
+
+    # Capa 2: Godot CLI Bridge
+    try:
+        register_export_tools(mcp)
+        logger.info("[OK] Export tools registradas")
+    except Exception as e:
+        logger.error(f"Error al registrar export_tools: {e}")
+        raise
+
+    try:
+        register_runtime_tools(mcp)
+        logger.info("[OK] Runtime tools registradas")
+    except Exception as e:
+        logger.error(f"Error al registrar runtime_tools: {e}")
+        raise
+
+    try:
+        register_import_tools(mcp)
+        logger.info("[OK] Import tools registradas")
+    except Exception as e:
+        logger.error(f"Error al registrar import_tools: {e}")
+        raise
+
+    try:
+        register_screenshot_tools(mcp)
+        logger.info("[OK] Screenshot tools registradas")
+    except Exception as e:
+        logger.error(f"Error al registrar screenshot_tools: {e}")
+        raise
+
+    try:
+        register_movie_tools(mcp)
+        logger.info("[OK] Movie tools registradas")
+    except Exception as e:
+        logger.error(f"Error al registrar movie_tools: {e}")
+        raise
+
+    # Capa 3: LSP/DAP
+    try:
+        register_lsp_tools(mcp)
+        logger.info("[OK] LSP tools registradas")
+    except Exception as e:
+        logger.error(f"Error al registrar lsp_tools: {e}")
+        raise
+
+    try:
+        register_dap_tools(mcp)
+        logger.info("[OK] DAP tools registradas")
+    except Exception as e:
+        logger.error(f"Error al registrar dap_tools: {e}")
+        raise
+
+    # Capa 4: Project Intelligence
+    try:
+        register_dependency_tools(mcp)
+        logger.info("[OK] Dependency tools registradas")
+    except Exception as e:
+        logger.error(f"Error al registrar dependency_tools: {e}")
+        raise
+
+    try:
+        register_signal_graph_tools(mcp)
+        logger.info("[OK] Signal graph tools registradas")
+    except Exception as e:
+        logger.error(f"Error al registrar signal_graph_tools: {e}")
+        raise
+
+    try:
+        register_code_analysis_tools(mcp)
+        logger.info("[OK] Code analysis tools registradas")
+    except Exception as e:
+        logger.error(f"Error al registrar code_analysis_tools: {e}")
+        raise
+
+    # Capa 5: Skeleton
+    try:
+        register_skeleton_tools(mcp)
+        logger.info("[OK] Skeleton tools registradas")
+    except Exception as e:
+        logger.error(f"Error al registrar skeleton_tools: {e}")
+        raise
+
+    # Capa 6: Array Operations
+    try:
+        register_array_tools(mcp)
+        logger.info("[OK] Array tools registradas")
+    except Exception as e:
+        logger.error(f"Error al registrar array_tools: {e}")
+        raise
+
+    # Capa 7: Resource Builder
+    try:
+        register_resource_builder_tools(mcp)
+        logger.info("[OK] Resource builder tools registradas")
+    except Exception as e:
+        logger.error(f"Error al registrar resource_builder_tools: {e}")
         raise
 
     logger.info("Todas las herramientas registradas correctamente")

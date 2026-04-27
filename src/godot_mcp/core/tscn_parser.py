@@ -19,16 +19,21 @@ class SectionType(Enum):
     SUB_RESOURCE = "sub_resource"
     NODE = "node"
     CONNECT = "connection"
+    EDITABLE = "editable"
 
 
 @dataclass
 class GdSceneHeader:
-    """Header section [gd_scene]"""
+    """Header section [gd_scene]
+    
+    Supports inherited scenes with the 'inherits' attribute (Godot 4.x).
+    """
 
     load_steps: int = 0
     format: int = 3
     uid: str = ""
     scene_unique_name: str = ""
+    inherits: str = ""  # Path to base scene for inherited scenes
 
     def to_dict(self) -> dict:
         result = {
@@ -39,6 +44,8 @@ class GdSceneHeader:
             result["uid"] = self.uid
         if self.scene_unique_name:
             result["scene_unique_name"] = self.scene_unique_name
+        if self.inherits:
+            result["inherits"] = self.inherits
         return result
 
     def to_tscn(self) -> str:
@@ -47,6 +54,8 @@ class GdSceneHeader:
             parts.append(f'uid="{self.uid}"')
         if self.scene_unique_name:
             parts.append(f'scene_unique_name="{self.scene_unique_name}"')
+        if self.inherits:
+            parts.append(f'inherits="{self.inherits}"')
         return f"[gd_scene {' '.join(parts)}]"
 
 
@@ -111,14 +120,30 @@ class NodeProperty:
 
 @dataclass
 class SceneNode:
-    """Scene node [node]"""
+    """Scene node [node]
+
+    Supports all Godot 4.6 node header fields:
+    - name, type, parent, unique_name_in_owner, instance
+    - unique_id: Stable scene-local ID for robust inheritance (Godot 4.6+)
+    - index: Order of appearance in tree (for inherited nodes precedence)
+    - owner: Node owner path
+    - groups: List of node groups
+    - instance_placeholder: Instance placeholder path
+    """
 
     name: str = ""
     type: str = ""
     parent: str = "."
     unique_name_in_owner: bool = False
     instance: str = ""  # ExtResource ID for scene instantiation
+    instance_placeholder: str = ""  # Instance placeholder path
+    unique_id: int = 0  # Godot 4.6+ stable scene-local ID
+    index: int = -1  # Order in tree (-1 = not set)
+    owner: str = ""  # Node owner path
+    groups: list = field(default_factory=list)  # Node groups
     properties: dict = field(default_factory=dict)
+    # Raw unknown fields preserved for forward compatibility
+    _unknown_fields: dict = field(default_factory=dict, repr=False)
 
     def to_dict(self) -> dict:
         result = {
@@ -127,12 +152,21 @@ class SceneNode:
             "parent": self.parent,
             "unique_name_in_owner": self.unique_name_in_owner,
             "instance": self.instance,
+            "instance_placeholder": self.instance_placeholder,
+            "unique_id": self.unique_id,
+            "index": self.index,
+            "owner": self.owner,
+            "groups": self.groups,
             "properties": self.properties,
         }
         return result
 
-    def to_tscn(self, is_root: bool = False) -> str:
+    def to_tscn(self, is_root: bool = False, scene: Optional["Scene"] = None) -> str:
         lines = []
+
+        # Generate unique_id if missing (new nodes)
+        if self.unique_id <= 0:
+            self.unique_id = _generate_unique_id()
 
         # Node header
         header_parts = []
@@ -143,11 +177,40 @@ class SceneNode:
         # Root node MUST NOT have a parent attribute (Godot rejects it)
         if self.parent and not is_root:
             header_parts.append(f'parent="{self.parent}"')
+            # Calculate parent_id_path from unique_ids (Godot 4.6+ format)
+            if scene:
+                parent_id_path = _build_parent_id_path(scene, self.parent)
+                if parent_id_path:
+                    ids_str = ", ".join(str(uid) for uid in parent_id_path)
+                    header_parts.append(f"parent_id_path=PackedInt32Array({ids_str})")
         if self.unique_name_in_owner:
             header_parts.append("unique_name_in_owner=true")
         # Instance attribute for scene instantiation (Godot format)
         if self.instance:
             header_parts.append(f'instance=ExtResource("{self.instance}")')
+        # Instance placeholder
+        if self.instance_placeholder:
+            header_parts.append(f'instance_placeholder="{self.instance_placeholder}"')
+        # Godot 4.6+ unique_id (stable scene-local ID)
+        if self.unique_id > 0:
+            header_parts.append(f"unique_id={self.unique_id}")
+        # index (order in tree)
+        if self.index >= 0:
+            header_parts.append(f'index="{self.index}"')
+        # owner
+        if self.owner:
+            header_parts.append(f'owner="{self.owner}"')
+        # groups
+        if self.groups:
+            header_parts.append(f'groups={_format_gdscript_value(self.groups)}')
+        # Unknown fields (forward compatibility)
+        for key, value in self._unknown_fields.items():
+            if isinstance(value, bool):
+                header_parts.append(f"{key}={str(value).lower()}")
+            elif isinstance(value, (int, float)):
+                header_parts.append(f"{key}={value}")
+            else:
+                header_parts.append(f'{key}="{value}"')
 
         if header_parts:
             lines.append(f"[node {' '.join(header_parts)}]")
@@ -197,6 +260,19 @@ class Connection:
 
 
 @dataclass
+class EditablePath:
+    """Editable child path declaration [editable path=\"...\"]"""
+
+    path: str = ""
+
+    def to_dict(self) -> dict:
+        return {"path": self.path}
+
+    def to_tscn(self) -> str:
+        return f'[editable path="{self.path}"]'
+
+
+@dataclass
 class Scene:
     """Complete parsed TSCN scene"""
 
@@ -205,6 +281,7 @@ class Scene:
     sub_resources: list[SubResource] = field(default_factory=list)
     nodes: list[SceneNode] = field(default_factory=list)
     connections: list[Connection] = field(default_factory=list)
+    editable_paths: list[EditablePath] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -213,17 +290,21 @@ class Scene:
             "sub_resources": [r.to_dict() for r in self.sub_resources],
             "nodes": [n.to_dict() for n in self.nodes],
             "connections": [c.to_dict() for c in self.connections],
+            "editable_paths": [e.to_dict() for e in self.editable_paths],
         }
 
     def to_tscn(self) -> str:
         lines = []
 
-        # Auto-calculate load_steps: 1 (scene itself) + ext_resources + sub_resources
-        actual_resources = len(self.ext_resources) + len(self.sub_resources)
-        if actual_resources > 0:
-            self.header.load_steps = 1 + actual_resources
-        elif self.header.load_steps == 0:
-            self.header.load_steps = 1  # At least the scene itself
+        # load_steps is deprecated in Godot 4.6+ but preserved for backwards compatibility.
+        # We only auto-calculate if it was not present in the original file (load_steps=0).
+        # If the original file had load_steps set, we preserve it to avoid unnecessary diffs.
+        if self.header.load_steps == 0:
+            actual_resources = len(self.ext_resources) + len(self.sub_resources)
+            if actual_resources > 0:
+                self.header.load_steps = 1 + actual_resources
+            else:
+                self.header.load_steps = 1  # At least the scene itself
 
         # Header
         lines.append(self.header.to_tscn())
@@ -240,12 +321,16 @@ class Scene:
         # Nodes
         for i, node in enumerate(self.nodes):
             is_root = i == 0
-            lines.append(node.to_tscn(is_root=is_root))
+            lines.append(node.to_tscn(is_root=is_root, scene=self))
             lines.append("")
 
         # Connections
         for conn in self.connections:
             lines.append(conn.to_tscn())
+
+        # Editable paths (Godot 4.x format for editable children)
+        for editable in self.editable_paths:
+            lines.append(editable.to_tscn())
 
         # Remove trailing empty lines but keep structure
         while lines and lines[-1] == "":
@@ -553,12 +638,51 @@ def _parse_sub_resource_header(line: str) -> dict:
 
 
 def _parse_node_header(line: str) -> dict:
-    """Parse [node] header line using regex to handle names with spaces."""
+    """Parse [node] header line using regex to handle names with spaces.
+
+    Supports all Godot 4.6 node header fields:
+    - name, type, parent, unique_name_in_owner, instance
+    - unique_id (int), index (int), owner (str)
+    - groups (list), instance_placeholder (str)
+    - Preserves unknown fields for forward compatibility
+    """
     import re
 
-    result = {"parent": ".", "instance": ""}
+    result = {
+        "parent": ".",
+        "instance": "",
+        "instance_placeholder": "",
+        "unique_id": 0,
+        "index": -1,
+        "owner": "",
+        "groups": [],
+        "_unknown_fields": {},
+    }
 
-    content = line.strip().strip("[]")
+    content = line.strip()
+    # strip("[]") is too aggressive - it removes ALL [ and ] from ends,
+    # which breaks groups=["a", "b"] by eating the closing ].
+    # Only strip the outermost [ and ].
+    if content.startswith("["):
+        content = content[1:]
+    if content.endswith("]"):
+        content = content[:-1]
+
+    # Handle groups specially (value may contain spaces: groups=["a", "b"])
+    groups_match = re.search(r'groups=\[([^\]]*)\]', content)
+    if groups_match:
+        groups_value = "[" + groups_match.group(1) + "]"
+        try:
+            parsed = _parse_gdscript_value(groups_value)
+            # _parse_gdscript_value returns dict for Array type
+            if isinstance(parsed, dict) and parsed.get("type") == "Array":
+                result["groups"] = parsed.get("items", [])
+            else:
+                result["groups"] = parsed
+        except Exception:
+            result["groups"] = []
+        # Remove groups from content to avoid double-parsing by regex
+        content = re.sub(r'groups=\[([^\]]*)\]', '', content)
 
     # Use regex to match key="value" or key=value patterns
     pattern = r'(\w+)="([^"]*)"|(\w+)=(\S+)'
@@ -576,12 +700,35 @@ def _parse_node_header(line: str) -> dict:
                 result[key] = value[13:-2]
             else:
                 result[key] = value
+        elif key == "unique_id":
+            # unique_id is an integer (Godot 4.6+)
+            try:
+                result[key] = int(value)
+            except (ValueError, TypeError):
+                result[key] = 0
+        elif key == "index":
+            # index is an integer (order in tree)
+            try:
+                result[key] = int(value)
+            except (ValueError, TypeError):
+                result[key] = -1
+        elif key == "groups":
+            # groups is a list like ["group1", "group2"]
+            try:
+                result[key] = _parse_gdscript_value(value)
+            except Exception:
+                result[key] = []
         elif value == "true":
             result[key] = True
         elif value == "false":
             result[key] = False
-        else:
+        elif key in ("name", "type", "parent", "owner", "instance_placeholder"):
             result[key] = value
+        elif key == "unique_name_in_owner":
+            result[key] = value == "true"
+        else:
+            # Unknown field - preserve for forward compatibility
+            result["_unknown_fields"][key] = value
 
     return result
 
@@ -627,11 +774,21 @@ def _parse_gdscript_value(value_str: str) -> Any:
         ref = value_str[10:-2]  # Remove NodePath(" and ")
         return {"type": "NodePath", "ref": ref}
 
+    # Handle StringName &"name"
+    if value_str.startswith('&"') and value_str.endswith('"'):
+        return value_str  # Keep as-is (StringName literal)
+
     # Handle Vector2(x, y)
     if value_str.startswith("Vector2(") and value_str.endswith(")"):
         inner = value_str[8:-1]
         parts = inner.split(", ")
         return {"type": "Vector2", "x": float(parts[0]), "y": float(parts[1])}
+
+    # Handle Vector2i(x, y)
+    if value_str.startswith("Vector2i(") and value_str.endswith(")"):
+        inner = value_str[9:-1]
+        parts = inner.split(", ")
+        return {"type": "Vector2i", "x": int(parts[0]), "y": int(parts[1])}
 
     # Handle Vector3(x, y, z)
     if value_str.startswith("Vector3(") and value_str.endswith(")"):
@@ -642,6 +799,17 @@ def _parse_gdscript_value(value_str: str) -> Any:
             "x": float(parts[0]),
             "y": float(parts[1]),
             "z": float(parts[2]),
+        }
+
+    # Handle Vector3i(x, y, z)
+    if value_str.startswith("Vector3i(") and value_str.endswith(")"):
+        inner = value_str[9:-1]
+        parts = inner.split(", ")
+        return {
+            "type": "Vector3i",
+            "x": int(parts[0]),
+            "y": int(parts[1]),
+            "z": int(parts[2]),
         }
 
     # Handle Vector4(x, y, z, w)
@@ -733,7 +901,36 @@ def _parse_gdscript_value(value_str: str) -> Any:
             "height": int(float(parts[3])),
         }
 
-    # Handle Array [...]
+    # Handle typed arrays: Array[Type]([...]) or Array([...])
+    if value_str.startswith("Array"):
+        # Extract the array content after Array[Type]( or Array(
+        # Format: Array[PackedScene]([...]) or Array([...])
+        import re
+        
+        # Match Array[Type](content) or Array(content)
+        typed_array_match = re.match(r'Array\[(\w+)\]\((.*)\)$', value_str, re.DOTALL)
+        plain_array_match = re.match(r'Array\((.*)\)$', value_str, re.DOTALL)
+        
+        if typed_array_match:
+            array_type = typed_array_match.group(1)
+            inner = typed_array_match.group(2)
+            # The content might be wrapped in [...]
+            if inner.startswith("[") and inner.endswith("]"):
+                inner = inner[1:-1]
+            if inner.strip():
+                items = _parse_array_items(inner)
+                return {"type": "Array", "array_type": array_type, "items": items}
+            return {"type": "Array", "array_type": array_type, "items": []}
+        elif plain_array_match:
+            inner = plain_array_match.group(1)
+            if inner.startswith("[") and inner.endswith("]"):
+                inner = inner[1:-1]
+            if inner.strip():
+                items = _parse_array_items(inner)
+                return {"type": "Array", "items": items}
+            return {"type": "Array", "items": []}
+    
+    # Handle plain Array [...]
     if value_str.startswith("[") and value_str.endswith("]"):
         inner = value_str[1:-1]
         if inner.strip():
@@ -770,12 +967,38 @@ def _parse_gdscript_value(value_str: str) -> Any:
 
 
 def _parse_array_items(content: str) -> list:
-    """Parse array items"""
+    """Parse array items, handling nested structures and strings with commas."""
     items = []
     current = ""
     depth = 0
+    in_string = False
+    string_char = None
 
     for char in content:
+        # Handle string boundaries
+        if char in '"\'':
+            if not in_string:
+                in_string = True
+                string_char = char
+            elif string_char == char:
+                # Check if escaped (preceded by odd number of backslashes)
+                backslash_count = 0
+                for i in range(len(current) - 1, -1, -1):
+                    if current[i] == '\\':
+                        backslash_count += 1
+                    else:
+                        break
+                if backslash_count % 2 == 0:
+                    in_string = False
+                    string_char = None
+            current += char
+            continue
+
+        if in_string:
+            current += char
+            continue
+
+        # Handle nested structures
         if char in "([{":
             depth += 1
             current += char
@@ -863,6 +1086,9 @@ def _format_gdscript_value(value: Any) -> str:
             return stripped
         if stripped.startswith('NodePath("') and stripped.endswith('")'):
             return stripped
+        # StringName literal: &"name"
+        if stripped.startswith('&"') and stripped.endswith('"'):
+            return stripped
         # Also check for malformed references (with extra quotes)
         if (
             'ExtResource("' in stripped
@@ -899,8 +1125,12 @@ def _format_gdscript_value(value: Any) -> str:
             return f'NodePath("{ref_id}")'
         if value.get("type") == "Vector2":
             return f"Vector2({value.get('x', 0)}, {value.get('y', 0)})"
+        if value.get("type") == "Vector2i":
+            return f"Vector2i({value.get('x', 0)}, {value.get('y', 0)})"
         if value.get("type") == "Vector3":
             return f"Vector3({value.get('x', 0)}, {value.get('y', 0)}, {value.get('z', 0)})"
+        if value.get("type") == "Vector3i":
+            return f"Vector3i({value.get('x', 0)}, {value.get('y', 0)}, {value.get('z', 0)})"
         if value.get("type") == "Vector4":
             return f"Vector4({value.get('x', 0)}, {value.get('y', 0)}, {value.get('z', 0)}, {value.get('w', 0)})"
         if value.get("type") == "Color":
@@ -914,8 +1144,14 @@ def _format_gdscript_value(value: Any) -> str:
             return f"Color({', '.join(parts)})"
         if value.get("type") == "Rect2":
             return f"Rect2({value.get('x', 0)}, {value.get('y', 0)}, {value.get('width', 0)}, {value.get('height', 0)})"
+        if value.get("type") == "Rect2i":
+            return f"Rect2i({value.get('x', 0)}, {value.get('y', 0)}, {value.get('width', 0)}, {value.get('height', 0)})"
         if value.get("type") == "Array":
             items = [_format_gdscript_value(i) for i in value.get("items", [])]
+            array_type = value.get("array_type")
+            if array_type:
+                # Typed array: Array[Type]([...])
+                return f"Array[{array_type}]([{', '.join(items)}])"
             return f"[{', '.join(items)}]"
         if value.get("type") == "Dictionary":
             items = {
@@ -923,14 +1159,72 @@ def _format_gdscript_value(value: Any) -> str:
             }
             pairs = [f'"{k}": {v}' for k, v in items.items()]
             return f"{{{', '.join(pairs)}}}"
-        # Generic dict
-        return str(value)
+        # Generic dict → serialize as GDScript dictionary
+        # This handles Animation track keys, state machine states, etc.
+        pairs = []
+        for k, v in value.items():
+            formatted_k = f'"{k}"' if isinstance(k, str) else str(k)
+            formatted_v = _format_gdscript_value(v)
+            pairs.append(f'{formatted_k}: {formatted_v}')
+        return f"{{{', '.join(pairs)}}}"
 
     if isinstance(value, list):
         items = [_format_gdscript_value(i) for i in value]
         return f"[{', '.join(items)}]"
 
     return str(value)
+
+
+def _generate_unique_id() -> int:
+    """Generate a stable random unique_id (Godot 4.6+ scene-local ID).
+    
+    Godot uses random 32-bit integers. We generate them in the range
+    1000000000-4294967295 to match the 10-digit format seen in real scenes.
+    """
+    import random
+    return random.randint(1_000_000_000, 4_294_967_295)
+
+
+def _build_parent_id_path(scene: "Scene", parent_path: str) -> list[int] | None:
+    """Build a PackedInt32Array of unique_ids from root to the given parent.
+    
+    Traverses the node hierarchy using parent references to build the path.
+    Supports multi-level paths like "Kitchen/Entities".
+    Returns None if the parent is '.' (root) or if any node lacks unique_id.
+    """
+    if parent_path == "." or not parent_path:
+        return None
+    
+    # Build name -> node lookup
+    name_to_node = {n.name: n for n in scene.nodes}
+    
+    # Build path from parent to root
+    path_ids = []
+    current = parent_path
+    visited = set()
+    
+    while current and current != ".":
+        if current in visited:
+            break  # Circular reference protection
+        visited.add(current)
+        
+        # Handle multi-level paths: get the last component
+        if "/" in current:
+            node_name = current.split("/")[-1]
+        else:
+            node_name = current
+        
+        node = name_to_node.get(node_name)
+        if not node:
+            return None
+        if node.unique_id <= 0:
+            return None
+        path_ids.append(node.unique_id)
+        current = node.parent
+    
+    # Reverse to get root -> leaf order
+    path_ids.reverse()
+    return path_ids
 
 
 def _detect_section_type(line: str) -> Optional[SectionType]:
@@ -950,6 +1244,8 @@ def _detect_section_type(line: str) -> Optional[SectionType]:
             return SectionType.NODE
         elif content == "connection":
             return SectionType.CONNECT
+        elif content == "editable":
+            return SectionType.EDITABLE
 
     return None
 
@@ -991,6 +1287,7 @@ def parse_tscn_string(content: str) -> Scene:
                 format=data.get("format", 3),
                 uid=data.get("uid", ""),
                 scene_unique_name=data.get("scene_unique_name", ""),
+                inherits=data.get("inherits", ""),
             )
 
         elif section == SectionType.EXT_RESOURCE:
@@ -1034,6 +1331,12 @@ def parse_tscn_string(content: str) -> Scene:
                 parent=data.get("parent", "."),
                 unique_name_in_owner=data.get("unique_name_in_owner", False),
                 instance=data.get("instance", ""),
+                instance_placeholder=data.get("instance_placeholder", ""),
+                unique_id=data.get("unique_id", 0),
+                index=data.get("index", -1),
+                owner=data.get("owner", ""),
+                groups=data.get("groups", []),
+                _unknown_fields=data.get("_unknown_fields", {}),
             )
 
         elif section == SectionType.CONNECT:
@@ -1050,6 +1353,15 @@ def parse_tscn_string(content: str) -> Scene:
             if current_conn:
                 scene.connections.append(current_conn)
             current_conn = None
+
+        elif section == SectionType.EDITABLE:
+            # Parse [editable path="..."] line
+            # Extract path="..." value
+            import re
+            match = re.search(r'path="([^"]*)"', line)
+            if match:
+                scene.editable_paths.append(EditablePath(path=match.group(1)))
+            current_section = None
 
         # Property line (not a section header)
         elif _is_property_line(line):

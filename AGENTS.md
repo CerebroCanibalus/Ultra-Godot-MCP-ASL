@@ -9,6 +9,9 @@ Este documento define los subagentes especializados para el MCP Godot Python, un
 | Agente | Descripción | Propósito Principal |
 |--------|-------------|---------------------|
 | `@Parser` | Especialista en parsing TSCN y formatos Godot | Analizar y manipular archivos .tscn, .gd, .tres |
+| `@ArrayOps` | Operaciones quirúrgicas sobre arrays | Añadir/quitar/modificar elementos sin reescribir archivos |
+| `@LSPClient` | Language Server Protocol de Godot | Autocompletado, hover, diagnósticos de GDScript |
+| `@DAPClient` | Debug Adapter Protocol de Godot | Debugging, breakpoints, stack traces |
 | `@CacheMaster` | Gestión de cache LRU e invalidación | Optimizar operaciones repetitivas |
 | `@TemplateEngine` | Templates Jinja2 para nodos/scripts | Generar código GDScript automáticamente |
 | `@ToolSmith` | Creación de herramientas FastMCP | Extender funcionalidades del servidor |
@@ -349,6 +352,175 @@ print(info.usage)
 
 ---
 
+## ⚡ @ArrayOps - Operaciones Quirúrgicas sobre Arrays
+
+### Responsabilidades
+- Modificar arrays en escenas sin reescribir todo el archivo
+- Preservar tipos de arrays (`Array[PackedScene]`, `Array[int]`, etc.)
+- Soportar operaciones: append, remove, replace, insert, clear
+- Previsualizar cambios antes de aplicarlos
+- Manejar arrays con elementos complejos (ExtResource, SubResource)
+
+### Cuándo Invocarlo
+- Cuando necesitas añadir/quitar elementos de un array
+- Para modificar listas de recursos (scenes, textures, etc.)
+- Cuando quieres previsualizar cambios en arrays
+- Para operaciones batch sobre arrays
+
+### Herramientas MCP Usadas
+```python
+# Operaciones de arrays
+- mcp__godot__scene_array_operation  # Append/remove/replace/insert/clear
+- mcp__godot__preview_array_operation  # Previsualizar cambios
+```
+
+### Flujo de Trabajo
+```
+1. Identificar array objetivo (node + property)
+2. Seleccionar operación (append/remove/replace/insert/clear)
+3. Especificar valor/índice
+4. Previsualizar cambios (opcional)
+5. Aplicar operación
+```
+
+### Ejemplo de Uso
+```python
+# Añadir escena a spawner
+from godot_mcp.tools.array_tools import scene_array_operation
+
+result = scene_array_operation(
+    scene_path="spawner.tscn",
+    node_path="Spawner",
+    property_name="scenes",
+    operation="append",
+    value={"type": "ExtResource", "ref": "3_newscene"}
+)
+
+# Previsualizar antes de aplicar
+preview = preview_array_operation(
+    scene_path="spawner.tscn",
+    node_path="Spawner",
+    property_name="scenes",
+    operation="remove",
+    index=0
+)
+```
+
+---
+
+## 🔍 @LSPClient - Language Server Protocol
+
+### Responsabilidades
+- Proporcionar autocompletado de código GDScript
+- Mostrar documentación hover de símbolos
+- Obtener lista de símbolos en archivos
+- Diagnosticar errores y warnings en tiempo real
+
+### Cuándo Invocarlo
+- Cuando necesitas autocompletado de código
+- Para ver documentación de métodos/clases
+- Para encontrar todos los símbolos de un archivo
+- Para diagnosticar errores antes de ejecutar
+
+### Requisitos
+- **Godot Editor DEBE estar abierto** (puerto 6005)
+- Proyecto Godot válido con `project.godot`
+
+### Herramientas MCP Usadas
+```python
+# LSP Tools (requiere Godot Editor abierto)
+- mcp__godot__lsp_get_completions    # Autocompletado en posición
+- mcp__godot__lsp_get_hover          # Documentación de símbolo
+- mcp__godot__lsp_get_symbols        # Lista de símbolos
+- mcp__godot__lsp_get_diagnostics    # Errores y warnings
+```
+
+### Flujo de Trabajo
+```
+1. Verificar que Godot Editor esté abierto
+2. Proporr ruta del archivo GDScript
+3. Especificar línea y columna (0-based)
+4. Obtener resultados del LSP
+```
+
+### Ejemplo de Uso
+```python
+# Obtener autocompletado
+completions = lsp_get_completions(
+    project_path="D:/MyGame",
+    file_path="res://scripts/player.gd",
+    line=10,
+    column=5
+)
+
+# Ver documentación de método
+hover = lsp_get_hover(
+    project_path="D:/MyGame",
+    file_path="res://scripts/player.gd",
+    line=15,
+    column=8
+)
+```
+
+---
+
+## 🐛 @DAPClient - Debug Adapter Protocol
+
+### Responsabilidades
+- Iniciar sesiones de debugging
+- Gestionar breakpoints
+- Controlar ejecución (continue, step over, step into)
+- Obtener stack traces con variables
+
+### Cuándo Invocarlo
+- Para debuggear scripts GDScript
+- Para inspeccionar variables en runtime
+- Para navegar por el stack trace
+- Para breakpoints condicionales
+
+### Requisitos
+- **Godot Editor DEBE estar abierto** con debugging (puerto 6006)
+- Proyecto Godot válido
+
+### Herramientas MCP Usadas
+```python
+# DAP Tools (requiere Godot Editor en modo debug)
+- mcp__godot__dap_start_debugging     # Iniciar sesión debug
+- mcp__godot__dap_set_breakpoint      # Poner breakpoint
+- mcp__godot__dap_continue            # Continuar ejecución
+- mcp__godot__dap_step_over           # Step over
+- mcp__godot__dap_step_into           # Step into
+- mcp__godot__dap_get_stack_trace     # Obtener stack trace
+```
+
+### Flujo de Trabajo
+```
+1. Iniciar Godot Editor con debugging
+2. Llamar dap_start_debugging()
+3. Setear breakpoints con dap_set_breakpoint()
+4. Ejecutar escena
+5. Navegar con step_over/step_into
+6. Inspeccionar stack trace
+```
+
+### Ejemplo de Uso
+```python
+# Iniciar debugging
+session = dap_start_debugging("D:/MyGame")
+
+# Poner breakpoint
+breakpoint = dap_set_breakpoint(
+    project_path="D:/MyGame",
+    file_path="res://scripts/player.gd",
+    line=42
+)
+
+# Obtener stack trace cuando se detenga
+stack = dap_get_stack_trace("D:/MyGame")
+```
+
+---
+
 ## 🔄 Flujo de Trabajo Coordinado
 
 Los subagentes pueden trabajan juntos:
@@ -357,6 +529,8 @@ Los subagentes pueden trabajan juntos:
 @GodotSage (consulta)
        ↓
 @Parser (analiza) → @CacheMaster (cachea)
+       ↓
+@ArrayOps (modifica arrays) → @Parser (valida)
        ↓
 @TemplateEngine (genera) → @ToolSmith (crea herramienta)
        ↓
@@ -391,6 +565,125 @@ cache.set("states:Attack", new_state)
 
 ---
 
+## 🆕 Nuevas Herramientas MCP (v4.1.0)
+
+Las siguientes herramientas fueron añadidas para soportar funcionalidades avanzadas de Godot 4.x:
+
+### Escenas Heredadas (`create_scene` con `inherits`)
+
+Crear escenas que heredan de otra escena base:
+
+```python
+create_scene(
+    project_path="D:/MyGame",
+    scene_path="scenes/PlayerExtended.tscn",
+    inherits="res://scenes/BasePlayer.tscn"
+)
+```
+
+Genera `[gd_scene load_steps=2 format=3 inherits="res://scenes/BasePlayer.tscn"]` sin nodo root.
+
+### Instanciación con Editable Children (`instantiate_scene`)
+
+Instanciar una escena con `editable_children=True` para permitir modificar hijos en el editor:
+
+```python
+instantiate_scene(
+    scene_path="res://scenes/Enemy.tscn",
+    parent_scene_path="res://scenes/Level.tscn",
+    node_name="Enemy1",
+    editable_children=True  # Genera [editable path="Enemy1"]
+)
+```
+
+### Gestión de Grupos (`add_node_groups`, `remove_node_groups`)
+
+```python
+# Añadir grupos
+add_node_groups(
+    scene_path="res://scenes/Player.tscn",
+    node_path="Player",
+    groups=["player", "damageable"]
+)
+
+# Eliminar grupos
+remove_node_groups(
+    scene_path="res://scenes/Player.tscn",
+    node_path="Player",
+    groups=["damageable"]
+)
+```
+
+### Señales (`connect_signal`, `disconnect_signal`, `list_signals`)
+
+```python
+# Conectar
+connect_signal(
+    scene_path="res://scenes/Player.tscn",
+    from_node="Player/Area2D",
+    signal="body_entered",
+    to_node="Player",
+    method="_on_area_body_entered"
+)
+
+# Listar
+list_signals(scene_path="res://scenes/Player.tscn")
+
+# Desconectar
+disconnect_signal(
+    scene_path="res://scenes/Player.tscn",
+    from_node="Player/Area2D",
+    signal="body_entered",
+    to_node="Player",
+    method="_on_area_body_entered"
+)
+```
+
+### Eliminación de Recursos (`remove_ext_resource`, `remove_sub_resource`)
+
+```python
+# Eliminar ExtResource huérfano
+remove_ext_resource(
+    scene_path="res://scenes/Player.tscn",
+    resource_id="5"
+)
+
+# Eliminar SubResource huérfano
+remove_sub_resource(
+    scene_path="res://scenes/Player.tscn",
+    resource_id="GradientTexture2D_abc123"
+)
+```
+
+### Editable Paths (`set_editable_paths`)
+
+Marcar hijos de instancias como editables manualmente:
+
+```python
+set_editable_paths(
+    scene_path="res://scenes/Level.tscn",
+    paths=["Kitchen", "Kitchen/Door", "Kitchen/Entities/Table"]
+)
+```
+
+### Atributos de Nodo Adicionales
+
+`add_node` e `instantiate_scene` ahora soportan:
+- `unique_name_in_owner=True` → Referenciable con `%Name` en GDScript
+- `owner="NodePath"` → Sistema de ownership de Godot
+
+```python
+add_node(
+    scene_path="res://scenes/Player.tscn",
+    parent_path=".",
+    node_type="Area2D",
+    node_name="Hitbox",
+    unique_name_in_owner=True
+)
+```
+
+---
+
 ## 📖 Glosario
 
 | Término | Definición |
@@ -413,5 +706,5 @@ cache.set("states:Attack", new_state)
 
 ---
 
-*Última actualización: 2026-04-12*
-*Versión del documento: 1.0*
+*Última actualización: 2026-04-26*
+*Versión del documento: 1.1*

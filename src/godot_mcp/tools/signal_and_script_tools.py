@@ -9,6 +9,7 @@ Proporciona herramientas FastMCP para:
 
 import logging
 import os
+import re
 from typing import Any, Optional
 
 from godot_mcp.core.tscn_parser import (
@@ -98,6 +99,60 @@ def connect_signal(
             "hint": "Use find_nodes to list available nodes",
         }
 
+    # Validate method exists on target node (best-effort)
+    warnings = []
+    _, to_node_obj = to_result
+    script_ref = to_node_obj.properties.get("script")
+    if script_ref:
+        # Try to resolve script path
+        script_path = None
+        if isinstance(script_ref, str):
+            match = re.search(r'ExtResource\("([^"]+)"\)', script_ref)
+            if match:
+                ext_id = match.group(1)
+                for ext in scene.ext_resources:
+                    if ext.id == ext_id and ext.type == "Script":
+                        script_path = ext.path
+                        break
+        elif isinstance(script_ref, dict) and script_ref.get("type") == "ExtResource":
+            ext_id = script_ref.get("ref", "")
+            for ext in scene.ext_resources:
+                if ext.id == ext_id and ext.type == "Script":
+                    script_path = ext.path
+                    break
+
+        if script_path and script_path.startswith("res://"):
+            # Try to find project root from scene path
+            project_root = None
+            scene_dir = os.path.dirname(scene_path)
+            # Walk up to find project.godot
+            current = scene_dir
+            for _ in range(10):
+                if os.path.isfile(os.path.join(current, "project.godot")):
+                    project_root = current
+                    break
+                parent = os.path.dirname(current)
+                if parent == current:
+                    break
+                current = parent
+
+            if project_root:
+                rel_path = script_path.replace("res://", "").replace("/", os.sep)
+                abs_script_path = os.path.join(project_root, rel_path)
+                if os.path.isfile(abs_script_path):
+                    try:
+                        with open(abs_script_path, "r", encoding="utf-8") as f:
+                            script_content = f.read()
+                        # Check for method definition
+                        pattern = rf'\bfunc\s+{re.escape(method)}\s*\('
+                        if not re.search(pattern, script_content):
+                            warnings.append(
+                                f"Method '{method}' not found in script '{script_path}'. "
+                                "It may be inherited or a built-in method."
+                            )
+                    except Exception:
+                        pass  # Ignore read errors
+
     # Check for duplicate connection
     for conn in scene.connections:
         if (
@@ -110,6 +165,7 @@ def connect_signal(
                 "success": True,
                 "message": "Connection already exists",
                 "connection": conn.to_dict(),
+                "warnings": warnings,
             }
 
     # Create connection
@@ -126,10 +182,111 @@ def connect_signal(
     # Save
     _update_scene_file(scene_path, scene)
 
-    return {
+    result = {
         "success": True,
         "message": f"Connected '{signal}' from '{from_node}' to '{to_node}.{method}'",
         "connection": new_conn.to_dict(),
+        "scene_path": scene_path,
+    }
+    if warnings:
+        result["warnings"] = warnings
+    return result
+
+
+# ============ DISCONNECT SIGNAL ============
+
+
+@require_session
+def disconnect_signal(
+    session_id: str,
+    scene_path: str,
+    from_node: str,
+    signal: str,
+    to_node: str,
+    method: str,
+) -> dict:
+    """
+    Disconnect a signal from one node to a method on another node.
+
+    Removes a [connection] entry from the TSCN file.
+
+    Args:
+        session_id: Session ID from start_session.
+        scene_path: Path to the .tscn file.
+        from_node: Node path that emits the signal (e.g., "Player/Area2D").
+        signal: Name of the signal to disconnect (e.g., "body_entered").
+        to_node: Node path that receives the signal (e.g., "Player").
+        method: Name of the method to disconnect (e.g., "_on_area_body_entered").
+
+    Returns:
+        Dict with success status.
+    """
+    scene_path = _ensure_tscn_path(scene_path)
+
+    if not os.path.exists(scene_path):
+        return {"success": False, "error": "Scene file not found"}
+
+    scene = parse_tscn(scene_path)
+
+    # Find and remove the connection
+    removed = None
+    for i, conn in enumerate(scene.connections):
+        if (
+            conn.from_node == from_node
+            and conn.signal == signal
+            and conn.to_node == to_node
+            and conn.method == method
+        ):
+            removed = scene.connections.pop(i)
+            break
+
+    if not removed:
+        return {
+            "success": False,
+            "error": f"Connection not found: {signal} from {from_node} to {to_node}.{method}",
+        }
+
+    _update_scene_file(scene_path, scene)
+
+    return {
+        "success": True,
+        "message": f"Disconnected '{signal}' from '{from_node}' to '{to_node}.{method}'",
+        "connection": removed.to_dict(),
+        "scene_path": scene_path,
+    }
+
+
+# ============ LIST SIGNALS ============
+
+
+@require_session
+def list_signals(
+    session_id: str,
+    scene_path: str,
+) -> dict:
+    """
+    List all signal connections in a scene.
+
+    Args:
+        session_id: Session ID from start_session.
+        scene_path: Path to the .tscn file.
+
+    Returns:
+        Dict with success status and list of connections.
+    """
+    scene_path = _ensure_tscn_path(scene_path)
+
+    if not os.path.exists(scene_path):
+        return {"success": False, "error": "Scene file not found"}
+
+    scene = parse_tscn(scene_path)
+
+    connections = [conn.to_dict() for conn in scene.connections]
+
+    return {
+        "success": True,
+        "count": len(connections),
+        "connections": connections,
         "scene_path": scene_path,
     }
 
@@ -351,7 +508,9 @@ def register_signal_and_script_tools(mcp) -> None:
     logger.info("Registrando signal & script tools...")
 
     mcp.add_tool(connect_signal)
+    mcp.add_tool(disconnect_signal)
+    mcp.add_tool(list_signals)
     mcp.add_tool(set_script)
     mcp.add_tool(add_sub_resource)
 
-    logger.info("[OK] 3 signal & script tools registradas")
+    logger.info("[OK] 5 signal & script tools registradas")

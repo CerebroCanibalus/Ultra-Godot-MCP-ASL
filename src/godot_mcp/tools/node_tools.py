@@ -44,6 +44,18 @@ import uuid
 logger = logging.getLogger(__name__)
 
 
+# Tipos primitivos de GDScript que NUNCA deben convertirse en SubResource
+# Estos se serializan inline (e.g., Vector2(0, 0), Color(1, 0, 0))
+_GDSCRIPT_PRIMITIVE_TYPES = {
+    "Vector2", "Vector2i", "Vector3", "Vector3i", "Vector4", "Vector4i",
+    "Color", "Rect2", "Rect2i", "Transform2D", "Transform3D",
+    "Basis", "Quaternion", "AABB", "Plane", "PackedStringArray",
+    "PackedInt32Array", "PackedInt64Array", "PackedFloat32Array",
+    "PackedFloat64Array", "PackedByteArray", "PackedColorArray",
+    "PackedVector2Array", "PackedVector3Array", "StringName", "NodePath",
+}
+
+
 # ============ HELPERS ============
 
 
@@ -59,10 +71,40 @@ def _normalize_node_path(node_path: str) -> str:
     return node_path.strip("/")
 
 
-def _compute_node_full_path(node: SceneNode) -> str:
-    """Compute the full path of a node (e.g., 'Root/Player/Sprite')."""
-    if node.parent == ".":
+def _compute_node_full_path(node: SceneNode, scene: Scene = None) -> str:
+    """Compute the full path of a node (e.g., 'Root/Player/Sprite').
+    
+    If scene is provided, reconstructs the full hierarchical path by
+    traversing parent references recursively.
+    """
+    if node.parent == "." or not node.parent:
         return node.name
+    
+    # If scene is provided, try to build full path recursively
+    if scene:
+        # Build a name -> node lookup
+        name_to_node = {n.name: n for n in scene.nodes}
+        
+        def _build_path(node_name: str, visited: set = None) -> str:
+            if visited is None:
+                visited = set()
+            if node_name in visited:
+                return node_name  # Circular reference protection
+            visited.add(node_name)
+            
+            if node_name not in name_to_node:
+                return node_name
+            
+            n = name_to_node[node_name]
+            if n.parent == "." or not n.parent:
+                return n.name
+            
+            parent_path = _build_path(n.parent, visited)
+            return f"{parent_path}/{n.name}"
+        
+        return _build_path(node.name)
+    
+    # Fallback: simple parent/name (for backwards compatibility)
     return f"{node.parent}/{node.name}"
 
 
@@ -379,6 +421,12 @@ def _process_resource_properties(scene: Scene, properties: dict) -> dict:
         elif isinstance(value, dict) and "type" in value:
             resource_type = value["type"]
 
+            # Si es un tipo primitivo de GDScript, pasarlo directamente
+            # (nunca convertir Vector2, Color, etc. en SubResource)
+            if resource_type in _GDSCRIPT_PRIMITIVE_TYPES:
+                processed[key] = value
+                continue
+
             # Si tiene campo "ref", es una referencia a recurso existente
             if "ref" in value:
                 ref_id = _clean_resource_id(value["ref"])
@@ -553,6 +601,8 @@ def add_node(
     node_type: str,
     node_name: str,
     properties: dict = None,
+    unique_name_in_owner: bool = False,
+    owner: str = "",
 ) -> dict:
     """
     Add a node to scene.
@@ -564,6 +614,8 @@ def add_node(
         node_type: Godot node type (e.g., "Sprite2D", "Node2D").
         node_name: Name for the new node.
         properties: Optional dict of properties to set.
+        unique_name_in_owner: If True, the node can be referenced with %name in GDScript.
+        owner: Optional owner node path (Godot ownership system).
 
     Returns:
         Dict with success status and node info.
@@ -596,6 +648,8 @@ def add_node(
         name=node_name,
         type=node_type,
         parent=resolved_parent,
+        unique_name_in_owner=unique_name_in_owner,
+        owner=owner,
     )
 
     # Procesar propiedades de recursos antes de asignar
@@ -1204,6 +1258,114 @@ def find_nodes(
     }
 
 
+# ============ NODE GROUPS ============
+
+
+@require_session
+def add_node_groups(
+    session_id: str,
+    scene_path: str,
+    node_path: str,
+    groups: list[str],
+) -> dict:
+    """
+    Add groups to a node.
+
+    Args:
+        session_id: Session ID from start_session.
+        scene_path: Path to the .tscn file.
+        node_path: Path or name of the node.
+        groups: List of group names to add.
+
+    Returns:
+        Dict with success status and updated groups.
+    """
+    scene_path = _ensure_tscn_path(scene_path)
+
+    if not os.path.exists(scene_path):
+        return {"success": False, "error": "Scene file not found"}
+
+    scene = parse_tscn(scene_path)
+
+    result = _find_node_by_path(scene, node_path)
+    if not result:
+        return {
+            "success": False,
+            "error": f"Node not found: {node_path}",
+        }
+
+    idx, node = result
+
+    # Add groups (avoid duplicates)
+    current_groups = set(node.groups)
+    for group in groups:
+        current_groups.add(group)
+    node.groups = sorted(list(current_groups))
+
+    _update_scene_file(scene_path, scene)
+
+    return {
+        "success": True,
+        "node": node_path,
+        "groups": node.groups,
+        "added": groups,
+        "scene_path": scene_path,
+    }
+
+
+@require_session
+def remove_node_groups(
+    session_id: str,
+    scene_path: str,
+    node_path: str,
+    groups: list[str],
+) -> dict:
+    """
+    Remove groups from a node.
+
+    Args:
+        session_id: Session ID from start_session.
+        scene_path: Path to the .tscn file.
+        node_path: Path or name of the node.
+        groups: List of group names to remove.
+
+    Returns:
+        Dict with success status and updated groups.
+    """
+    scene_path = _ensure_tscn_path(scene_path)
+
+    if not os.path.exists(scene_path):
+        return {"success": False, "error": "Scene file not found"}
+
+    scene = parse_tscn(scene_path)
+
+    result = _find_node_by_path(scene, node_path)
+    if not result:
+        return {
+            "success": False,
+            "error": f"Node not found: {node_path}",
+        }
+
+    idx, node = result
+
+    # Remove groups
+    removed = []
+    for group in groups:
+        if group in node.groups:
+            node.groups.remove(group)
+            removed.append(group)
+
+    _update_scene_file(scene_path, scene)
+
+    return {
+        "success": True,
+        "node": node_path,
+        "groups": node.groups,
+        "removed": removed,
+        "scene_path": scene_path,
+    }
+
+
 # ============ REGISTRATION ============
 
 
@@ -1226,8 +1388,10 @@ def register_node_tools(mcp) -> None:
     mcp.add_tool(move_node)
     mcp.add_tool(duplicate_node)
     mcp.add_tool(find_nodes)
+    mcp.add_tool(add_node_groups)
+    mcp.add_tool(remove_node_groups)
 
     logger.info(
-        "[OK] 9 node_tools registradas (fuzzywuzzy=%s)",
+        "[OK] 11 node_tools registradas (fuzzywuzzy=%s)",
         "enabled" if FUZZY_AVAILABLE else "disabled",
     )
